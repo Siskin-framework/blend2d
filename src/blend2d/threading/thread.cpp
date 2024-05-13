@@ -151,7 +151,6 @@ static BLResult BL_CDECL blPortableWorkerThreadRun(BLThread* self, BLThreadFunc 
   thread->_statusData.flags = flags | BL_WORKER_THREAD_FLAG_ENQUEUED_WORK;
 
   if (flags & BL_WORKER_THREAD_FLAG_SLEEPING) {
-    guard.release();
     thread->_condition.signal();
   }
 
@@ -174,7 +173,6 @@ static BLResult BL_CDECL blPortableWorkerThreadQuit(BLThread* self, uint32_t qui
   thread->_statusData.flags = flags | BL_WORKER_THREAD_FLAG_QUITTING;
 
   if (flags & BL_WORKER_THREAD_FLAG_SLEEPING) {
-    guard.release();
     thread->_condition.signal();
   }
 
@@ -245,7 +243,7 @@ static BLResult BL_CDECL blFutexWorkerThreadDestroy(BLThread* self) noexcept {
 }
 
 static BL_INLINE void blFutexWorkerThreadWakeUp(BLFutexWorkerThread* thread) noexcept {
-  BLFutex::wakeOne(&thread->_statusData.flags);
+  bl::Futex::wakeOne(&thread->_statusData.flags);
 }
 
 static BLResult BL_CDECL blFutexWorkerThreadRun(BLThread* self, BLThreadFunc workFunc, void* data) noexcept {
@@ -315,8 +313,8 @@ static void BL_CDECL blFutexWorkerThreadEntryPoint(BLThread* self) noexcept {
       BLThreadFunc workFunc = blAtomicFetchRelaxed(&thread->_workItem.func);
       void* workData = blAtomicFetchRelaxed(&thread->_workItem.data);
 
-      constexpr uint32_t kEnqueingOrEnqueued = BL_WORKER_THREAD_FLAG_ENQUEUING_WORK | BL_WORKER_THREAD_FLAG_ENQUEUED_WORK;
-      blAtomicFetchAndSeqCst(&thread->_statusData.flags, ~kEnqueingOrEnqueued);
+      constexpr uint32_t kEnqueuingOrEnqueued = BL_WORKER_THREAD_FLAG_ENQUEUING_WORK | BL_WORKER_THREAD_FLAG_ENQUEUED_WORK;
+      blAtomicFetchAndSeqCst(&thread->_statusData.flags, ~kEnqueuingOrEnqueued);
 
       spinCount = 0;
       workFunc(thread, workData);
@@ -328,7 +326,7 @@ static void BL_CDECL blFutexWorkerThreadEntryPoint(BLThread* self) noexcept {
       return;
     }
 
-    // If another thread is enqueing work at the moment, spin for a little
+    // If another thread is enqueuing work at the moment, spin for a little
     // time to either pick it up immediately or before going to wait.
     if (flags & BL_WORKER_THREAD_FLAG_ENQUEUING_WORK && ++spinCount < kSpinLimit)
       continue;
@@ -341,7 +339,7 @@ static void BL_CDECL blFutexWorkerThreadEntryPoint(BLThread* self) noexcept {
     if (flags & (BL_WORKER_THREAD_FLAG_ENQUEUED_WORK | BL_WORKER_THREAD_FLAG_QUITTING))
       continue;
 
-    BLFutex::wait(&thread->_statusData.flags, flags | BL_WORKER_THREAD_FLAG_SLEEPING);
+    bl::Futex::wait(&thread->_statusData.flags, flags | BL_WORKER_THREAD_FLAG_SLEEPING);
   }
 }
 

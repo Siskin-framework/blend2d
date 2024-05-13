@@ -1408,7 +1408,7 @@ static BL_INLINE_NODEBUG Out blBitCast(const In& x) noexcept {
 //! Returns an absolute value of `a`.
 template<typename T>
 BL_NODISCARD
-BL_INLINE_NODEBUG constexpr T blAbs(const T& a) noexcept { return T(a < 0 ? -a : a); }
+BL_INLINE_NODEBUG constexpr T blAbs(const T& a) noexcept { return T(a < T(0) ? -a : a); }
 
 //! Returns a minimum value of `a` and `b`.
 template<typename T>

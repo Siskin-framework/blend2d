@@ -851,7 +851,7 @@ static BL_INLINE void restoreClippingFromState(BLRasterContextImpl* ctxI, SavedS
 // ===========================================================
 
 #if 0
-// TODO: Experiment, not ready yet.
+// TODO: [Rendering Context] Experiment, not ready yet.
 static BL_INLINE bool translateAndClipRectToFillI(const BLRasterContextImpl* ctxI, const BLRectI* srcRect, BLBoxI* dstBoxOut) noexcept {
   __m128d x0y0 = _mm_cvtepi32_pd(_mm_loadu_si64(&srcRect->x));
   __m128d wh = _mm_cvtepi32_pd(_mm_loadu_si64(&srcRect->w));
@@ -1025,21 +1025,18 @@ static BL_NOINLINE BLResult flushRenderBatch(BLRasterContextImpl* ctxI) noexcept
   if (mgr.hasPendingCommands()) {
     mgr.finalizeBatch();
 
-    WorkerSynchronization& synchronization = mgr._synchronization;
+    WorkerSynchronization* synchronization = &mgr._synchronization;
     RenderBatch* batch = mgr.currentBatch();
     uint32_t threadCount = mgr.threadCount();
 
-    synchronization.beforeStart(threadCount, batch->jobCount() > 0);
-    batch->_synchronization = &synchronization;
-
     for (uint32_t i = 0; i < threadCount; i++) {
       WorkData* workData = mgr._workDataStorage[i];
-      workData->batch = batch;
+      workData->initBatch(batch);
       workData->initContextData(ctxI->dstData, ctxI->syncWorkData.ctxData.pixelOrigin);
     }
 
     // Just to make sure that all the changes are visible to the threads.
-    blAtomicThreadFence();
+    synchronization->beforeStart(threadCount, batch->jobCount() > 0);
 
     for (uint32_t i = 0; i < threadCount; i++) {
       mgr._workerThreads[i]->run(WorkerProc::workerThreadEntry, mgr._workDataStorage[i]);
@@ -1047,17 +1044,18 @@ static BL_NOINLINE BLResult flushRenderBatch(BLRasterContextImpl* ctxI) noexcept
 
     // User thread acts as a worker too.
     {
+      synchronization->threadStarted();
+
       WorkData* workData = &ctxI->syncWorkData;
       SyncWorkState workState;
 
       workState.save(*workData);
-      workData->batch = batch;
-      WorkerProc::processWorkData(workData);
+      WorkerProc::processWorkData(workData, batch);
       workState.restore(*workData);
     }
 
     if (threadCount) {
-      mgr._synchronization.waitForThreadsToFinish();
+      synchronization->waitForThreadsToFinish();
       ctxI->syncWorkData._accumulatedErrorFlags |= blAtomicFetchRelaxed(&batch->_accumulatedErrorFlags);
     }
 
@@ -2454,7 +2452,7 @@ static BL_INLINE BLResult enqueueCommandWithFillJob(
   RenderCommand* command = ctxI->workerMgr->currentCommand();
   JobType* job;
 
-  // TODO: FetchData calculation offloading not ready yet - needs more testing:
+  // TODO: [Rendering Context] FetchData calculation offloading not ready yet - needs more testing:
   // bool wasPending = di.signature.hasPendingFlag();
   // di.signature.clearPendingBit();
 
@@ -2467,7 +2465,7 @@ static BL_INLINE BLResult enqueueCommandWithFillJob(
     WorkerManager& mgr = ctxI->workerMgr();
     job->initFillJob(mgr._commandAppender.queue(), mgr._commandAppender.index());
 
-    // TODO: FetchData calculation offloading not ready yet - needs more testing:
+    // TODO: [Rendering Context] FetchData calculation offloading not ready yet - needs more testing:
     // if (wasPending && command->hasFlag(RenderCommandFlags::kRetainsStyleFetchData))
     //   job->addJobFlags(RenderJobFlags::kComputePendingFetchData);
 
@@ -4308,6 +4306,7 @@ static BLResult attach(BLRasterContextImpl* ctxI, BLImageCore* image, const BLCo
 
   if (!ctxI->isSync()) {
     ctxI->virt = &rasterImplVirtAsync;
+    ctxI->syncWorkData.synchronization = &ctxI->workerMgr->_synchronization;
   }
 
   // Increase `writerCount` of the image, will be decreased by `detach()`.
@@ -4593,11 +4592,18 @@ static void initVirt(BLContextVirt* virt) noexcept {
 // =====================================================
 
 BLResult blRasterContextInitImpl(BLContextCore* self, BLImageCore* image, const BLContextCreateInfo* options) noexcept {
+  // NOTE: Initially static data was part of `BLRasterContextImpl`, however, that doesn't work with MSAN
+  // as it would consider it destroyed when `bl::ArenaAllocator` iterates that block during destruction.
+  constexpr size_t kStaticDataSize = 2048;
+  constexpr size_t kContextImplSize = sizeof(BLRasterContextImpl) + kStaticDataSize;
+
   BLObjectInfo info = BLObjectInfo::fromTypeWithMarker(BL_OBJECT_TYPE_CONTEXT);
-  BL_PROPAGATE(bl::ObjectInternal::allocImplAlignedT<BLRasterContextImpl>(self, info, BLObjectImplSize{sizeof(BLRasterContextImpl)}, 64));
+  BL_PROPAGATE(bl::ObjectInternal::allocImplAlignedT<BLRasterContextImpl>(self, info, BLObjectImplSize{kContextImplSize}, 64));
 
   BLRasterContextImpl* ctxI = static_cast<BLRasterContextImpl*>(self->_d.impl);
-  blCallCtor(*ctxI, &bl::RasterEngine::rasterImplVirtSync);
+  void* staticData = static_cast<void*>(reinterpret_cast<uint8_t*>(self->_d.impl) + sizeof(BLRasterContextImpl));
+
+  blCallCtor(*ctxI, &bl::RasterEngine::rasterImplVirtSync, staticData, kStaticDataSize);
   BLResult result = bl::RasterEngine::attach(ctxI, image, options);
 
   if (result != BL_SUCCESS)

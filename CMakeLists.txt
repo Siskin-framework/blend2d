@@ -151,7 +151,7 @@ function(blend2d_add_target target target_type)
 
   if ("${target_type}" MATCHES "^(EXECUTABLE|TEST)$")
     add_executable(${target} ${X_SOURCES})
-    set_target_properties(${sample} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "$(TargetDir).")
+    set_target_properties(${target} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "$(TargetDir).")
   else()
     add_library(${target} ${target_type} ${X_SOURCES})
     set_target_properties(${target} PROPERTIES DEFINE_SYMBOL "")
@@ -294,13 +294,12 @@ else()
       int blend2d_jit_available() { return 1; }
     #elif defined(_M_IX86) || defined(__X86__) || defined(__i386__)
       int blend2d_jit_available() { return 1; }
+    #elif defined(_M_ARM64) || defined(__arm64__) || defined(__aarch64__)
+      int blend2d_jit_available() { return 1; }
     #else
       // JIT not available
     #endif
-
-    int main() {
-      return blend2d_jit_available();
-    }
+    int main() { return blend2d_jit_available(); }
     " BLEND2D_HAS_JIT_SUPPORT)
   if (NOT BLEND2D_HAS_JIT_SUPPORT)
     message("-- Disabling JIT compiler support (unsupported target architecture)")
@@ -341,6 +340,7 @@ if ("x${CMAKE_CXX_COMPILER_ID}" STREQUAL "xMSVC" OR "x${CMAKE_CXX_SIMULATE_ID}" 
   # be used anyway.
   blend2d_detect_cflags(BLEND2D_CFLAGS_AVX "-arch:AVX")
   blend2d_detect_cflags(BLEND2D_CFLAGS_AVX2 "-arch:AVX2")
+  blend2d_detect_cflags(BLEND2D_CFLAGS_AVX2FMA "-arch:AVX2")
   blend2d_detect_cflags(BLEND2D_CFLAGS_AVX512 "-arch:AVX512")
 
   if (BLEND2D_CFLAGS_AVX2)
@@ -373,6 +373,7 @@ else()
   # Assume all other compilers are compatible with GCC|Clang.
   blend2d_detect_cflags(BLEND2D_CFLAGS_AVX "-mavx")
   blend2d_detect_cflags(BLEND2D_CFLAGS_AVX2 "-mavx2")
+  blend2d_detect_cflags(BLEND2D_CFLAGS_AVX2FMA "-mavx2 -mfma")
   blend2d_detect_cflags(BLEND2D_CFLAGS_AVX512 "-mavx512bw -mavx512dq -mavx512cd -mavx512vl")
   if (BLEND2D_CFLAGS_AVX2)
     list(APPEND BLEND2D_CFLAGS_SSE2 "-msse2")
@@ -691,8 +692,8 @@ set(BLEND2D_SRC_LIST
   blend2d/opentype/otglyf_avx2.cpp
   blend2d/opentype/otglyf_sse4_2.cpp
   blend2d/opentype/otglyf_p.h
-  blend2d/opentype/otglyfsimddata.cpp
   blend2d/opentype/otglyfsimddata_p.h
+  blend2d/opentype/otglyfsimddata.cpp
   blend2d/opentype/otglyfsimdimpl_p.h
   blend2d/opentype/otkern.cpp
   blend2d/opentype/otkern_p.h
@@ -713,6 +714,7 @@ set(BLEND2D_SRC_LIST
 
   blend2d/pipeline/jit/compoppart.cpp
   blend2d/pipeline/jit/compoppart_p.h
+  blend2d/pipeline/jit/compoputils_p.h
   blend2d/pipeline/jit/fetchgradientpart.cpp
   blend2d/pipeline/jit/fetchgradientpart_p.h
   blend2d/pipeline/jit/fetchpart.cpp
@@ -725,14 +727,32 @@ set(BLEND2D_SRC_LIST
   blend2d/pipeline/jit/fetchsolidpart_p.h
   blend2d/pipeline/jit/fetchutils.cpp
   blend2d/pipeline/jit/fetchutils_p.h
+  blend2d/pipeline/jit/fetchutilsbilinear.cpp
+  blend2d/pipeline/jit/fetchutilsbilinear_p.h
+  blend2d/pipeline/jit/fetchutilscoverage.cpp
+  blend2d/pipeline/jit/fetchutilscoverage_p.h
+  blend2d/pipeline/jit/fetchutilsinlineloops.cpp
+  blend2d/pipeline/jit/fetchutilsinlineloops_p.h
+  blend2d/pipeline/jit/fetchutilspixelaccess.cpp
+  blend2d/pipeline/jit/fetchutilspixelaccess_p.h
+  blend2d/pipeline/jit/fetchutilspixelgather.cpp
+  blend2d/pipeline/jit/fetchutilspixelgather_p.h
   blend2d/pipeline/jit/fillpart.cpp
   blend2d/pipeline/jit/fillpart_p.h
   blend2d/pipeline/jit/jitbase_p.h
+  blend2d/pipeline/jit/pipecompiler_a64.cpp
   blend2d/pipeline/jit/pipecompiler_x86.cpp
+  blend2d/pipeline/jit/pipecompiler_test.cpp
+  blend2d/pipeline/jit/pipecompiler_test_avx2fma.cpp
+  blend2d/pipeline/jit/pipecompiler_test_sse2.cpp
   blend2d/pipeline/jit/pipecompiler_p.h
+  blend2d/pipeline/jit/pipecomposer.cpp
+  blend2d/pipeline/jit/pipecomposer_p.h
   blend2d/pipeline/jit/pipedebug_p.h
-  blend2d/pipeline/jit/pipegencore.cpp
-  blend2d/pipeline/jit/pipegencore_p.h
+  blend2d/pipeline/jit/pipefunction_p.h
+  blend2d/pipeline/jit/pipefunction.cpp
+  blend2d/pipeline/jit/pipeprimitives.cpp
+  blend2d/pipeline/jit/pipeprimitives_p.h
   blend2d/pipeline/jit/pipegenruntime_p.h
   blend2d/pipeline/jit/pipegenruntime.cpp
   blend2d/pipeline/jit/pipepart.cpp
@@ -852,6 +872,7 @@ set(BLEND2D_SRC_LIST
   blend2d/threading/threadpool.cpp
   blend2d/threading/threadpool_test.cpp
   blend2d/threading/threadpool_p.h
+  blend2d/threading/tsanutils_p.h
   blend2d/threading/uniqueidgenerator.cpp
   blend2d/threading/uniqueidgenerator_p.h
 
@@ -869,7 +890,7 @@ foreach(src_file ${BLEND2D_SRC_LIST})
   set(src_file "${BLEND2D_DIR}/src/${src_file}")
   list(APPEND BLEND2D_SRC ${src_file})
 
-  string(REGEX MATCH "_(sse2|sse3|ssse3|sse4_1|sse4_2|avx|avx2|avx512|asimd)\\.(c|cc|cxx|cpp|m|mm)$" FEATURE ${src_file})
+  string(REGEX MATCH "_(sse2|sse3|ssse3|sse4_1|sse4_2|avx|avx2|avx2fma|avx512|asimd)\\.(c|cc|cxx|cpp|m|mm)$" FEATURE ${src_file})
   if (FEATURE)
     # HACK 1: Cmake uses global variables everywhere, `CMAKE_MATCH_1` is the first capture...
     string(TOUPPER "${CMAKE_MATCH_1}" FEATURE)
@@ -981,20 +1002,19 @@ if (NOT BLEND2D_EMBED)
     target_include_directories(bl_test_unit BEFORE PRIVATE ${ASMJIT_INCLUDE_DIRS})
     target_include_directories(bl_test_unit BEFORE PRIVATE ${BLEND2D_INCLUDE_DIRS})
 
-    blend2d_add_target(bl_test_fuzzer TEST
-                       SOURCES test/bl_test_fuzzer.cpp
-                       LIBRARIES blend2d::blend2d
-                       CFLAGS "${BLEND2D_SANITIZE_CFLAGS}")
-
-    blend2d_add_target(bl_test_verify_mt TEST
-                       SOURCES test/bl_test_verify_mt.cpp
-                       LIBRARIES blend2d::blend2d
-                       CFLAGS "${BLEND2D_SANITIZE_CFLAGS}")
+    foreach(fuzz_app bl_test_fuzz_simple bl_test_fuzz_mt bl_test_fuzz_jit)
+      blend2d_add_target(${fuzz_app} TEST
+                        SOURCES test/${fuzz_app}.cpp
+                                test/bl_test_fuzz_baseapp.h
+                                test/bl_test_fuzz_utilities.h
+                        LIBRARIES blend2d::blend2d
+                        CFLAGS "${BLEND2D_SANITIZE_CFLAGS}")
+    endforeach()
 
     # Blend2D Generator
     # -----------------
 
-    blend2d_add_target(bl_generator TEST
+    blend2d_add_target(bl_generator EXECUTABLE
                        SOURCES test/bl_generator.cpp
                                test/bl_generator.h
                        CFLAGS "${BLEND2D_SANITIZE_CFLAGS}")
@@ -1015,6 +1035,7 @@ if (NOT BLEND2D_EMBED)
       "bl_sample_6"
       "bl_sample_7"
       "bl_sample_8"
+      "bl_playground"
     )
 
     set(BLEND2D_SAMPLES_CAPI
