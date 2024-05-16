@@ -9,9 +9,17 @@ if [ -n "${ASMJIT_DIR}" ]; then
 fi
 
 echo "== [Configuring Build - Release_ASAN] =="
-eval cmake "${CURRENT_DIR}/.." -B "${BUILD_DIR}/Release_ASAN" ${BUILD_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DBLEND2D_SANITIZE=address
+eval cmake "${CURRENT_DIR}/.." -B "${BUILD_DIR}/Release_ASAN" ${BUILD_OPTIONS} -DCMAKE_BUILD_TYPE=Release -DBLEND2D_SANITIZE=address
 echo ""
 
 echo "== [Configuring Build - Release_UBSAN] =="
-eval cmake "${CURRENT_DIR}/.." -B "${BUILD_DIR}/Release_UBSAN" ${BUILD_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DBLEND2D_SANITIZE=undefined
+eval cmake "${CURRENT_DIR}/.." -B "${BUILD_DIR}/Release_UBSAN" ${BUILD_OPTIONS} -DCMAKE_BUILD_TYPE=Release -DBLEND2D_SANITIZE=undefined
+echo ""
+
+echo "== [Configuring Build - Release_MSAN] =="
+eval cmake "${CURRENT_DIR}/.." -B "${BUILD_DIR}/Release_MSAN" ${BUILD_OPTIONS} -DCMAKE_BUILD_TYPE=Release -DBLEND2D_SANITIZE=memory -DBLEND2D_NO_JIT=ON
+echo ""
+
+echo "== [Configuring Build - Release_TSAN] =="
+eval cmake "${CURRENT_DIR}/.." -B "${BUILD_DIR}/Release_TSAN" ${BUILD_OPTIONS} -DCMAKE_BUILD_TYPE=Release -DBLEND2D_SANITIZE=thread
 echo ""

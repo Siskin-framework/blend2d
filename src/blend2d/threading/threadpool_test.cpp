@@ -11,10 +11,11 @@
 #include "../threading/mutex_p.h"
 #include "../threading/threadpool_p.h"
 
-// BLThreadPool - Tests
-// ====================
+// bl::ThreadPool - Tests
+// ======================
 
-namespace BLThreadPoolTests {
+namespace bl {
+namespace Tests {
 
 struct ThreadTestData {
   uint32_t iter;
@@ -34,7 +35,8 @@ static void BL_CDECL test_thread_entry(BLThread* thread, void* data_) noexcept {
   INFO("[#%u] Thread %p running\n", data->iter, thread);
 
   if (blAtomicFetchSubStrong(&data->counter) == 1) {
-    if (data->mutex.protect([&]() { return data->waiting; })) {
+    BLLockGuard<BLMutex> guard(data->mutex);
+    if (data->waiting) {
       INFO("[#%u] Thread %p signaling to main thread\n", data->iter, thread);
       data->condition.signal();
     }
@@ -94,6 +96,7 @@ UNIT(thread_pool, BL_TEST_GROUP_THREADING) {
   INFO("Done");
 }
 
-} // {BLThreadPoolTests}
+} // {Tests}
+} // {bl}
 
 #endif // BL_TEST

@@ -27,7 +27,7 @@
 // ===========
 
 // We are just fine with <math.h>, however, there are some useful overloads in C++'s <cmath> that are nicer to use
-// than those in <math.h>. Mostly low-level functionality like blIsFinite() relies on <cmath> instead of <math.h>.
+// than those in <math.h>. Mostly low-level functionality like Math::isFinite() relies on <cmath> instead of <math.h>.
 #include <cmath>
 #include <limits>
 #include <type_traits>
@@ -96,7 +96,7 @@
 #define BL_TARGET_ARCH_BITS (BL_TARGET_ARCH_X86 | BL_TARGET_ARCH_ARM | BL_TARGET_ARCH_MIPS)
 #if BL_TARGET_ARCH_BITS == 0
   #undef BL_TARGET_ARCH_BITS
-  #if defined (__LP64__) || defined(_LP64)
+  #if defined(__LP64__) || defined(_LP64)
     #define BL_TARGET_ARCH_BITS 64
   #else
     #define BL_TARGET_ARCH_BITS 32
@@ -110,6 +110,15 @@
 #else
   #define BL_TARGET_HAS_ATOMIC_64B 0
 #endif
+
+#if !defined(BL_BUILD_NO_JIT)
+  #if BL_TARGET_ARCH_X86 != 0
+    #define BL_JIT_ARCH_X86
+  #elif BL_TARGET_ARCH_ARM == 64
+    // TODO: Not ready!
+    #define BL_JIT_ARCH_A64
+  #endif
+#endif // !BL_BUILD_NO_JIT
 
 // Build optimizations control compile-time optimizations to be used by Blend2D and C++ compiler. These optimizations
 // are not related to the code-generator optimizations (JIT) that are always auto-detected at runtime.
@@ -325,10 +334,13 @@
 //! \def BL_NOUNROLL
 //!
 //! Compiler-specific macro that annotates a do/for/while loop to not get unrolled.
-#if defined(__clang__) && BL_CLANG_AT_LEAST(3, 6)
+#if defined(__clang__)
   #define BL_NOUNROLL _Pragma("nounroll")
 #elif defined(__GNUC__) && (__GNUC__ >= 8)
-  #define BL_NOUNROLL _Pragma("GCC unroll 1")
+  // NOTE: We could use `_Pragma("GCC unroll 1")`, however, this doesn't apply to all loops and GCC emits a lot of
+  // warnings such as "ignoring loop annotation", which cannot be turned off globally nor locally. So we disable
+  // loop annotations when compiling with GCC. This comment is here so we can re-enable in the future.
+  #define BL_NOUNROLL
 #else
   #define BL_NOUNROLL
 #endif
@@ -635,6 +647,11 @@ static BL_INLINE_NODEBUG bool blDataAccessFlagsIsValid(uint32_t dataAccessFlags)
 }
 
 static BL_INLINE_NODEBUG void blPrefetchW(const void* p) { (void)p; }
+
+// BLInternal API Accessible Via 'bl' Namespace
+// ============================================
+
+namespace bl { using namespace BLInternal; }
 
 //! \}
 //! \endcond

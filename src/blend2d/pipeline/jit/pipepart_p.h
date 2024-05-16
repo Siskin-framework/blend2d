@@ -6,13 +6,14 @@
 #ifndef BLEND2D_PIPELINE_JIT_PIPEPART_P_H_INCLUDED
 #define BLEND2D_PIPELINE_JIT_PIPEPART_P_H_INCLUDED
 
-#include "../../pipeline/jit/pipegencore_p.h"
+#include "../../pipeline/jit/pipeprimitives_p.h"
 
 //! \cond INTERNAL
 //! \addtogroup blend2d_pipeline_jit
 //! \{
 
-namespace BLPipeline {
+namespace bl {
+namespace Pipeline {
 namespace JIT {
 
 //! Pipeline part type.
@@ -57,20 +58,23 @@ public:
   BL_NONCOPYABLE(PipePart)
   BL_OVERRIDE_NEW_DELETE(PipePart)
 
+  //! \name Members
+  //! \{
+
   //! Pointer to `PipeCompiler`.
   PipeCompiler* pc = nullptr;
-  //! Pointer to `asmjit::x86::Compiler`.
-  x86::Compiler* cc = nullptr;
+  //! Pointer to `asmjit::<arch>::Compiler`.
+  AsmCompiler* cc = nullptr;
 
   //! Reference to a common constant pool.
-  const BLCommonTable& ct;
+  const CommonTable& ct;
 
   //! Part type.
   PipePartType _partType {};
   //! Count of children parts, cannot be greater than the capacity of `_children`.
   uint8_t _childCount = 0;
   //! Maximum SIMD width this part supports.
-  SimdWidth _maxSimdWidthSupported = SimdWidth::k128;
+  VecWidth _maxVecWidthSupported = VecWidth::k128;
 
   //! Part flags.
   PipePartFlags _partFlags = PipePartFlags::kNone;
@@ -87,33 +91,53 @@ public:
   //! pipeline construction.
   asmjit::BaseNode* _globalHook = nullptr;
 
+  //! \}
+
+  //! \name Construction & Destruction
+  //! \{
+
   PipePart(PipeCompiler* pc, PipePartType partType) noexcept;
 
+  //! \}
+
+  //! \name Accessors
+  //! \{
+
   template<typename T>
-  BL_INLINE T* as() noexcept { return static_cast<T*>(this); }
+  BL_INLINE_NODEBUG T* as() noexcept { return static_cast<T*>(this); }
   template<typename T>
-  BL_INLINE const T* as() const noexcept { return static_cast<const T*>(this); }
+  BL_INLINE_NODEBUG const T* as() const noexcept { return static_cast<const T*>(this); }
 
   //! Tests whether the part is initialized
-  BL_INLINE bool isPartInitialized() const noexcept { return _globalHook != nullptr; }
+  BL_INLINE_NODEBUG bool isPartInitialized() const noexcept { return _globalHook != nullptr; }
   //! Returns the type of the part.
-  BL_INLINE PipePartType partType() const noexcept { return _partType; }
+  BL_INLINE_NODEBUG PipePartType partType() const noexcept { return _partType; }
   //! Returns PipePart flags.
-  BL_INLINE PipePartFlags partFlags() const noexcept { return _partFlags; }
+  BL_INLINE_NODEBUG PipePartFlags partFlags() const noexcept { return _partFlags; }
   //! Tests whether this part has the given `flag` set.
-  BL_INLINE bool hasPartFlag(PipePartFlags flag) const noexcept { return blTestFlag(_partFlags, flag); }
+  BL_INLINE_NODEBUG bool hasPartFlag(PipePartFlags flag) const noexcept { return blTestFlag(_partFlags, flag); }
 
-  BL_INLINE bool hasMaskedAccess() const noexcept { return blTestFlag(_partFlags, PipePartFlags::kMaskedAccess); }
+  BL_INLINE_NODEBUG bool hasMaskedAccess() const noexcept { return blTestFlag(_partFlags, PipePartFlags::kMaskedAccess); }
 
   //! Returns the maximum supported SIMD width.
-  BL_INLINE SimdWidth maxSimdWidthSupported() const noexcept { return _maxSimdWidthSupported; }
+  BL_INLINE_NODEBUG VecWidth maxVecWidthSupported() const noexcept { return _maxVecWidthSupported; }
 
   //! Returns the number of children.
-  BL_INLINE uint32_t childCount() const noexcept { return _childCount; }
+  BL_INLINE_NODEBUG uint32_t childCount() const noexcept { return _childCount; }
   //! Returns children parts as an array.
-  BL_INLINE PipePart** children() const noexcept { return (PipePart**)_children; }
+  BL_INLINE_NODEBUG PipePart** children() const noexcept { return (PipePart**)_children; }
+
+  //! \}
+
+  //! \name Prepare
+  //! \{
 
   virtual void preparePart() noexcept;
+
+  //! \}
+
+  //! \name Children
+  //! \{
 
   template<typename Function>
   void forEachPart(Function&& f) noexcept {
@@ -140,6 +164,11 @@ public:
     f(this);
   }
 
+  //! \}
+
+  //! \name Hooks
+  //! \{
+
   BL_INLINE void _initGlobalHook(asmjit::BaseNode* node) noexcept {
     // Can be initialized only once.
     BL_ASSERT(_globalHook == nullptr);
@@ -151,10 +180,13 @@ public:
     BL_ASSERT(_globalHook != nullptr);
     _globalHook = nullptr;
   }
+
+  //! \}
 };
 
 } // {JIT}
-} // {BLPipeline}
+} // {Pipeline}
+} // {bl}
 
 //! \}
 //! \endcond

@@ -26,9 +26,9 @@
 // includes all the necessary files required to use Blend2D library from both
 // C and C++ and it's the only header that is guaranteed to always be provided.
 //
-// Never include directly header files placed in "blend2d" directory. Headers
-// that end with "_p" suffix are private and should never be  included as they
-// are not part of public API and they are not part of blend2d-dev packages.
+// Never include directly header files placed in "blend2d/" directory. Headers
+// that end with "_p" suffix are private and should never be included - they
+// are not part of the public API and they are not part of blend2d-dev packages.
 // ----------------------------------------------------------------------------
 
 #ifndef BLEND2D_H_INCLUDED
@@ -45,6 +45,7 @@
 
 #include "blend2d/api.h"
 #include "blend2d/array.h"
+#include "blend2d/bitarray.h"
 #include "blend2d/bitset.h"
 #include "blend2d/context.h"
 #include "blend2d/filesystem.h"
