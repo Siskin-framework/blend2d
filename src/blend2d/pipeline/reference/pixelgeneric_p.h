@@ -162,7 +162,7 @@ struct U8_Alpha {
   BL_INLINE_NODEBUG uint32_t a() const noexcept { return u; }
   BL_INLINE_NODEBUG uint32_t value() noexcept { return u; }
 
-  BL_INLINE_NODEBUG Packed pack() const noexcept { return Packed{uint8_t(u * 0xFFu)}; }
+  BL_INLINE_NODEBUG Packed pack() const noexcept { return Packed{uint8_t(u & 0xFFu)}; }
   BL_INLINE_NODEBUG Unpacked unpack() const noexcept { return Unpacked{u}; }
 
   BL_INLINE_NODEBUG Unpacked operator&(uint32_t x) const noexcept { return Unpacked{uint16_t((uint32_t(u) & x) & 0xFFFFu)}; }

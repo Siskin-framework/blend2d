@@ -85,21 +85,6 @@ public:
   //! \}
 };
 
-void initVecCoverage(
-  PipeCompiler* pc,
-  VecArray& dst,
-  PixelCount maxPixelCount,
-  VecWidth maxVecWidth,
-  PixelType pixelType,
-  PixelCoverageFormat coverageFormat) noexcept;
-
-void passVecCoverage(
-  VecArray& dst,
-  const VecArray& src,
-  PixelCount pixelCount,
-  PixelType pixelType,
-  PixelCoverageFormat coverageFormat) noexcept;
-
 } // {FetchUtils}
 } // {JIT}
 } // {Pipeline}

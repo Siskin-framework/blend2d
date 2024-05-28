@@ -117,7 +117,8 @@ BL_DEFINE_ENUM_FLAGS(PixelCoverageFlags)
 //! Specifies whether to advance pointers.
 enum class AdvanceMode : uint32_t {
   kNoAdvance,
-  kAdvance
+  kAdvance,
+  kIgnored
 };
 
 //! Specifies gather options.

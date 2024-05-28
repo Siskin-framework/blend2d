@@ -163,6 +163,10 @@ struct BLRuntimeSystemInfo {
   uint32_t allocationGranularity;
   //! Reserved for future use.
   uint32_t reserved[5];
+  //! Host CPU vendor string such "AMD", "APPLE", "INTEL", "SAMSUNG", etc...
+  char cpuVendor[16];
+  //! Host CPU brand string or empty string if not detected properly.
+  char cpuBrand[64];
 
 #ifdef __cplusplus
   BL_INLINE_NODEBUG void reset() noexcept { *this = BLRuntimeSystemInfo{}; }

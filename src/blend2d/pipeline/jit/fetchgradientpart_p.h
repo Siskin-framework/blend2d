@@ -7,7 +7,7 @@
 #define BLEND2D_PIPELINE_JIT_FETCHGRADIENTPART_P_H_INCLUDED
 
 #include "../../pipeline/jit/fetchpart_p.h"
-#include "../../pipeline/jit/fetchutils_p.h"
+#include "../../pipeline/jit/fetchutilspixelgather_p.h"
 #include "../../support/wrap_p.h"
 
 //! \cond INTERNAL

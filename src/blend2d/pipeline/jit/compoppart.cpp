@@ -96,7 +96,7 @@ CompOpPart::CompOpPart(PipeCompiler* pc, CompOpExt compOp, FetchPart* dstPart, F
   }
   _maxVecWidthSupported = maxVecWidth;
 #elif defined(BL_JIT_ARCH_A64)
-  // TODO: [JIT] AArch64: Every composition mode should use packed in the future...
+  // TODO: [JIT] OPTIMIZATION: Every composition mode should use packed in the future (AArch64).
   if (isSrcCopy() || isSrcOver() || isScreen()) {
     _coverageFormat = PixelCoverageFormat::kPacked;
   }
@@ -121,10 +121,10 @@ void CompOpPart::preparePart() noexcept {
   if (blRuntimeIs32Bit() && !isSolid && _pixelType != PixelType::kA8)
     pixelLimit = 4;
 
-  // Decrease the maximum pixels to 4 if the source is complex to fetch. In such case fetching and processing more
+  // Decrease the maximum pixels to 4 if the source is expensive to fetch. In such case fetching and processing more
   // pixels would result in emitting bloated pipelines that are not faster compared to pipelines working with just
   // 4 pixels at a time.
-  if (dstPart()->isComplexFetch() || srcPart()->isComplexFetch())
+  if (dstPart()->isExpensive() || srcPart()->isExpensive())
     pixelLimit = 4;
 
   switch (pixelType()) {
@@ -357,7 +357,7 @@ void CompOpPart::srcFetch(Pixel& p, PixelCount n, PixelFlags flags, PixelPredica
       }
     }
     else if (p.isA8()) {
-      // TODO: [JIT] A8 pipepine.
+      // TODO: [JIT] UNIMPLEMENTED: A8 pipepine.
       BL_ASSERT(false);
     }
 
@@ -3003,7 +3003,7 @@ void CompOpPart::cMaskInitRGBA32(const Vec& vm) noexcept {
     if (isSrcCopy()) {
       if (hasMask) {
         _mask->vn = pc->newSimilarReg(vm, "vn");
-        if (PixelCoverageFormat() == PixelCoverageFormat::kPacked)
+        if (coverageFormat() == PixelCoverageFormat::kPacked)
           pc->v_not_u32(_mask->vn, vm);
         else
           pc->v_inv255_u16(_mask->vn, vm);
@@ -3020,7 +3020,7 @@ void CompOpPart::cMaskFiniRGBA32() noexcept {
     _solidPre.reset();
   }
   else {
-    // TODO: [JIT]
+    // TODO: [JIT] ???
   }
 
   _mask->reset();

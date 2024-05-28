@@ -856,8 +856,6 @@ struct alignas(16) FetchData {
 #endif
       };
     };
-
-    BL_INLINE_NODEBUG void reset() noexcept { prgb64 = 0; }
   };
 
   //! Pattern fetch data.
@@ -946,7 +944,7 @@ struct alignas(16) FetchData {
       double tw, th;
 
       union {
-        //! 32-bit value to be used by VPMADDWD instruction to calculate address from Y/X pairs.
+        //! 16-bit multipliers to be used by [V]PMADDWD instruction to calculate address from Y/X pairs.
         int16_t addrMul16[2];
         //! 32-bit multipliers for X and Y coordinates.
         int32_t addrMul32[2];
@@ -962,8 +960,6 @@ struct alignas(16) FetchData {
       //! Affine pattern data.
       Affine affine;
     };
-
-    BL_INLINE void reset() noexcept { memset(this, 0, sizeof(*this)); }
   };
 
   //! Gradient fetch data.
@@ -1050,8 +1046,6 @@ struct alignas(16) FetchData {
       //! Conic gradient specific data.
       Conic conic;
     };
-
-    BL_INLINE_NODEBUG void reset() noexcept { memset(this, 0, sizeof(*this)); }
   };
 
   //! Union of all possible fetch data types.
@@ -1063,8 +1057,6 @@ struct alignas(16) FetchData {
     //! Gradient fetch data.
     Gradient gradient;
   };
-
-  BL_INLINE_NODEBUG void reset() noexcept { memset(this, 0, sizeof(*this)); }
 };
 
 namespace FetchUtils {

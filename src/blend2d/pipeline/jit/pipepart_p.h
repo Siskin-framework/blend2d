@@ -34,7 +34,20 @@ enum class PipePartFlags : uint32_t {
   kPrepareDone = 0x00000001u,
   //! Part supports masked access (fetching / storing pixels predicated by a mask).
   kMaskedAccess = 0x00000002u,
-  //! Pipe fetch part needs `x` argument in order to advance horizontally.
+
+  //! Fetch is always rectangular, thus the fetcher should optimize for this case.
+  kRectFill = 0x00000010u,
+
+  //! This part performs expensive operations.
+  //!
+  //!   - if it's a fetcher, the fetch is expensive.
+  //!   - if it's a CompOp the composition is expensive.
+  //!   - other parts don't use this flag.
+  kExpensive = 0x00000020u,
+
+  //! Fetching always performs multiple pixels at once, thus the fetcher always stays in vectorized N mode
+  //! and not in scalar mode. This flag helps with avoiding enterN() and leaveN() when entering main loops.
+  kAlwaysMultiple = 0x00000040u,
 
   //! Advancing in X direction is simple and can be called even with zero `x`.
   kAdvanceXIsSimple = 0x0001000u,
@@ -116,8 +129,20 @@ public:
   BL_INLINE_NODEBUG PipePartFlags partFlags() const noexcept { return _partFlags; }
   //! Tests whether this part has the given `flag` set.
   BL_INLINE_NODEBUG bool hasPartFlag(PipePartFlags flag) const noexcept { return blTestFlag(_partFlags, flag); }
+  //! Adds new `flags` to the current \ref PipePartFlags.
+  BL_INLINE_NODEBUG void addPartFlags(PipePartFlags flags) noexcept { _partFlags |= flags; }
+  //! Adds new `flags` to the current \ref PipePartFlags.
+  BL_INLINE_NODEBUG void removePartFlags(PipePartFlags flags) noexcept { _partFlags &= ~flags; }
 
-  BL_INLINE_NODEBUG bool hasMaskedAccess() const noexcept { return blTestFlag(_partFlags, PipePartFlags::kMaskedAccess); }
+  //! Tests whether the fetch is currently initialized for a rectangular fill.
+  BL_INLINE_NODEBUG bool isRectFill() const noexcept { return hasPartFlag(PipePartFlags::kRectFill); }
+  //! Tests whether a compositor or fetcher perform expensive operations.
+  BL_INLINE_NODEBUG bool isExpensive() const noexcept { return hasPartFlag(PipePartFlags::kExpensive); }
+
+  //! Tests whether masked access is available.
+  //!
+  //! \note This is more a hint than a feature as masked access must be supported by all fetchers.
+  BL_INLINE_NODEBUG bool hasMaskedAccess() const noexcept { return hasPartFlag(PipePartFlags::kMaskedAccess); }
 
   //! Returns the maximum supported SIMD width.
   BL_INLINE_NODEBUG VecWidth maxVecWidthSupported() const noexcept { return _maxVecWidthSupported; }

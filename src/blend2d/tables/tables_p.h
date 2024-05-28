@@ -260,6 +260,8 @@ struct BL_ALIGN_TYPE(CommonTable, 64) {
   VecConstNative<uint64_t> swizu8_xxxx3210xxxxxxxx_to_3333222211110000 {{ REPEAT_128B(0x0909090908080808u, 0x0B0B0B0B0A0A0A0Au) }};
   VecConstNative<uint64_t> swizu8_3210xxxxxxxxxxxx_to_3333222211110000 {{ REPEAT_128B(0x0D0D0D0D0C0C0C0Cu, 0x0F0F0F0F0E0E0E0Eu) }};
 
+  VecConstNative<uint64_t> swizu8_xxxx1xxxxxxx0xxx_to_z1z1z1z1z0z0z0z0 {{ REPEAT_128B(0xff03ff03ff03ff03u, 0xff0Bff0Bff0Bff0Bu) }};
+
 #if BL_TARGET_ARCH_X86
 
   VecConst512<uint64_t> permu8_a8_to_rgba32_uc {{

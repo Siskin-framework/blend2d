@@ -2833,6 +2833,8 @@ static BL_NOINLINE void sseRound(PipeCompiler* pc, const Vec& dst, const Operand
 
   Operand maxn;
 
+  // round_max (f32) == 0x4B000000
+  // round_max (f64) == 0x4330000000000000
   if (fm == FloatMode::kF32S || fm == FloatMode::kF32V)
     maxn = pc->simdConst(&pc->ct.f32_round_max, Bcst::k32, dst);
   else
@@ -2897,7 +2899,7 @@ static BL_NOINLINE void sseRound(PipeCompiler* pc, const Vec& dst, const Operand
     sseFMov(pc, dst, src, fm);
     cc->emit(fi.fmov, t3, dst);
     cc->emit(fi.psrl, t3, Imm(isF32 ? 31 : 63));
-    cc->emit(fi.psll, t3, Imm(isF32 ? 22 : 51));
+    cc->emit(fi.psll, t3, Imm(isF32 ? 23 : 51));
     cc->emit(fi.for_, t3, maxn);
 
     cc->emit(fi.fmov, t1, dst);
@@ -2938,53 +2940,47 @@ static BL_NOINLINE void sseRound(PipeCompiler* pc, const Vec& dst, const Operand
     }
     else {
       msb = pc->simdConst(&pc->ct.f64_sgn, Bcst::k64, dst);
+
       sseFMov(pc, dst, src, fm);
-
-      cc->emit(fi.fmov, t3, dst);
-      cc->emit(fi.psrl, t3, Imm(isF32 ? 31 : 63));
-      cc->emit(fi.psll, t3, Imm(isF32 ? 22 : 51));
-      cc->emit(fi.for_, t3, maxn);
-
-      cc->emit(fi.fmov, t2, msb);
-      cc->emit(fi.fandn, t2, dst);
-
-      cc->emit(fi.fmov, t1, t2);
-      cc->emit(fi.fadd, t2, t3);
-
-      cc->emit(fi.fsub, t2, t3);
-      cc->emit(fi.fcmp, t1, t3, x86::CmpImm::kNLT);
-
-      cc->emit(fi.fmov, t3, dst);
-      cc->emit(fi.fcmp, t3, t2, x86::CmpImm::kLT);
-      cc->emit(fi.for_, t1, msb);
+      cc->emit(fi.fmov, t3, msb);
+      cc->emit(fi.fandn, t3, dst);
+      cc->emit(fi.fmov, t2, t3);
+      cc->emit(fi.fcmp, t2, maxn, x86::CmpImm::kLT);
+      cc->emit(fi.fand, t2, maxn);
+      cc->emit(fi.fmov, t1, t3);
+      cc->emit(fi.fadd, t1, t2);
+      cc->emit(fi.fsub, t1, t2);
+      cc->emit(fi.fcmp, t3, t1, x86::CmpImm::kLT);
       cc->emit(fi.fand, t3, one);
+      cc->emit(fi.fsub, t1, t3);
 
-      cc->emit(fi.fand, dst, t1);
-      cc->emit(fi.fsub, t2, t3);
-
-      cc->emit(fi.fandn, t1, t2);
+      cc->emit(fi.fand, dst, msb);
       cc->emit(fi.for_, dst, t1);
+      return;
     }
     return;
   }
 
-  // Round up and down needs a correction as adding and subtracting magic number rounds to nearest.
+  // Round up & down needs a correction as adding and subtracting magic number rounds to nearest.
   if (roundMode == x86::RoundImm::kDown || roundMode == x86::RoundImm::kUp) {
     InstId correctionInstId = roundMode == x86::RoundImm::kDown ? fi.fsub : fi.fadd;
     x86::CmpImm correctionPredicate = roundMode == x86::RoundImm::kDown ? x86::CmpImm::kLT : x86::CmpImm::kNLE;
 
     sseFMov(pc, dst, src, fm);
 
+    // maxn (f32) == 0x4B000000 (f64) == 0x4330000000000000
+    // t3   (f32) == 0x00800000 (f64) == 0x0008000000000000
+
     cc->emit(fi.fmov, t3, dst);
     cc->emit(fi.psrl, t3, Imm(isF32 ? 31 : 63));
-    cc->emit(fi.psll, t3, Imm(isF32 ? 22 : 51));
+    cc->emit(fi.psll, t3, Imm(isF32 ? 23 : 51));
     cc->emit(fi.for_, t3, maxn);
 
     cc->emit(fi.fmov, t1, dst);
     cc->emit(fi.fmov, t2, dst);
     cc->emit(fi.fadd, t2, t3);
-
     cc->emit(fi.fsub, t2, t3);
+
     cc->emit(fi.fcmp, t1, t3, x86::CmpImm::kNLT);
     cc->emit(fi.fmov, t3, dst);
     cc->emit(fi.fcmp, t3, t2, correctionPredicate);
@@ -3936,14 +3932,21 @@ void PipeCompiler::emit_2v(OpcodeVV op, const Operand_& dst_, const Operand_& sr
         return;
       }
 
-      case OpcodeVV::kCvtI8HiToI16:
       case OpcodeVV::kCvtU8HiToU16:
-      case OpcodeVV::kCvtI16HiToI32:
       case OpcodeVV::kCvtU16HiToU32:
-      case OpcodeVV::kCvtI32HiToI64:
       case OpcodeVV::kCvtU32HiToU64:
+        if (src.isVec() && dst.id() != src.id() && hasSSE4_1()) {
+          cc->pshufd(dst.as<Xmm>(), src.as<Xmm>(), x86::shuffleImm(3, 2, 3, 2));
+          cc->emit(instId, dst, dst);
+          return;
+        }
+        BL_FALLTHROUGH
+      case OpcodeVV::kCvtI8HiToI16:
+      case OpcodeVV::kCvtI16HiToI32:
+      case OpcodeVV::kCvtI32HiToI64:
         if (src.isVec()) {
           sseMov(this, dst, src);
+
           switch (op) {
             case OpcodeVV::kCvtI8HiToI16: {
               cc->punpckhbw(dst.as<Xmm>(), dst.as<Xmm>());
@@ -4028,31 +4031,37 @@ void PipeCompiler::emit_2v(OpcodeVV op, const Operand_& dst_, const Operand_& sr
         return;
       }
 
-      case OpcodeVV::kTruncF32S:
-      case OpcodeVV::kTruncF64S:
       case OpcodeVV::kTruncF32:
       case OpcodeVV::kTruncF64:
-      case OpcodeVV::kFloorF32S:
-      case OpcodeVV::kFloorF64S:
       case OpcodeVV::kFloorF32:
       case OpcodeVV::kFloorF64:
-      case OpcodeVV::kCeilF32S:
-      case OpcodeVV::kCeilF64S:
       case OpcodeVV::kCeilF32:
       case OpcodeVV::kCeilF64:
-      case OpcodeVV::kRoundF32S:
-      case OpcodeVV::kRoundF64S:
       case OpcodeVV::kRoundF32:
-      case OpcodeVV::kRoundF64: {
+      case OpcodeVV::kRoundF64:
+        // Native operation requires SSE4.1.
+        if (hasSSE4_1()) {
+          cc->emit(instId, dst, src, Imm(opInfo.imm));
+          return;
+        }
+        BL_FALLTHROUGH
+      case OpcodeVV::kTruncF32S:
+      case OpcodeVV::kTruncF64S:
+      case OpcodeVV::kFloorF32S:
+      case OpcodeVV::kFloorF64S:
+      case OpcodeVV::kCeilF32S:
+      case OpcodeVV::kCeilF64S:
+      case OpcodeVV::kRoundF32S:
+      case OpcodeVV::kRoundF64S: {
         // Native operation requires SSE4.1.
         if (hasSSE4_1()) {
           if (!isSameVec(dst, src))
             sseFMov(this, dst, src, FloatMode(opInfo.floatMode));
-          cc->emit(instId, dst, src, Imm(opInfo.imm));
+          cc->emit(instId, dst, dst, Imm(opInfo.imm));
+          return;
         }
-        else {
-          sseRound(this, dst, src, FloatMode(opInfo.floatMode), x86::RoundImm(opInfo.imm & 0x7));
-        }
+
+        sseRound(this, dst, src, FloatMode(opInfo.floatMode), x86::RoundImm(opInfo.imm & 0x7));
         return;
       }
 
@@ -4245,7 +4254,7 @@ void PipeCompiler::emit_2vi(OpcodeVVI op, const Operand_& dst_, const Operand_& 
       case OpcodeVVI::kSwizzleU16x4: {
         // Intrinsic.
 
-        // TODO: [JIT] Use VPSHUFB instead where appropriate.
+        // TODO: [JIT] OPTIMIZATION: Use VPSHUFB instead where appropriate.
         uint32_t shufImm = shufImm4FromSwizzle(Swizzle4{imm});
         cc->emit(Inst::kIdVpshuflw, dst, src, shufImm);
         cc->emit(Inst::kIdVpshufhw, dst, dst, shufImm);
@@ -4431,7 +4440,7 @@ void PipeCompiler::emit_2vi(OpcodeVVI op, const Operand_& dst_, const Operand_& 
       case OpcodeVVI::kSwizzleU16x4: {
         // Intrinsic (SSE2).
 
-        // TODO: [JIT] Use VPSHUFB instead where appropriate.
+        // TODO: [JIT] OPTIMIZATION: Use VPSHUFB instead where appropriate.
         uint32_t shufImm = shufImm4FromSwizzle(Swizzle4{imm});
         cc->emit(Inst::kIdPshuflw, dst, src, shufImm);
         cc->emit(Inst::kIdPshufhw, dst, dst, shufImm);
@@ -4595,7 +4604,7 @@ void PipeCompiler::emit_2vs(OpcodeVR op, const Operand_& dst_, const Operand_& s
         BL_ASSERT(dst.isVec());
         BL_ASSERT(src.isGp());
 
-        dst = src.as<Vec>().xmm();
+        dst = dst.as<Vec>().xmm();
 
         if (op != OpcodeVR::kInsertU64)
           src = src.as<Gp>().r32();

@@ -20,14 +20,17 @@ namespace JIT {
 //! Pipeline fetch part.
 class FetchPart : public PipePart {
 public:
-  enum : uint32_t {
-    kUnlimitedMaxPixels = 64
-  };
+  //! \name Constants
+  //! \{
+
+  static constexpr uint32_t kUnlimitedMaxPixels = 64;
+
+  //! \}
 
   //! \name Members
   //! \{
 
-  //! Fetch type.
+  //! Fetch part type.
   FetchType _fetchType;
 
   //! Source pixel format.
@@ -47,11 +50,6 @@ public:
   uint8_t _alphaOffset = 0;
   //! Applied offset to srcp0 and srcp1.
   uint8_t _alphaOffsetApplied = 0;
-
-  //! Fetcher is in a rectangle fill mode, set and cleared by `init...()`.
-  bool _isRectFill = false;
-  //! If the fetch-type is complex (used to limit the maximum number of pixels).
-  bool _isComplexFetch = false;
 
   //! If the fetched pixels contain RGB channels.
   bool _hasRGB = false;
@@ -80,7 +78,6 @@ public:
 
   //! Tests whether the fetch-type is solid.
   BL_INLINE_NODEBUG bool isSolid() const noexcept { return isFetchType(FetchType::kSolid); }
-
   //! Tests whether the fetch-type is gradient.
   BL_INLINE_NODEBUG bool isGradient() const noexcept { return isFetchType(FetchType::kGradientAnyFirst, FetchType::kGradientAnyLast); }
   //! Tests whether the fetch-type is linear gradient.
@@ -89,7 +86,6 @@ public:
   BL_INLINE_NODEBUG bool isRadialGradient() const noexcept { return isFetchType(FetchType::kGradientRadialFirst, FetchType::kGradientRadialLast); }
   //! Tests whether the fetch-type is conic gradient.
   BL_INLINE_NODEBUG bool isConicGradient() const noexcept { return isFetchType(FetchType::kGradientConicFirst, FetchType::kGradientConicLast); }
-
   //! Tests whether the fetch-type is pattern.
   BL_INLINE_NODEBUG bool isPattern() const noexcept { return isFetchType(FetchType::kPatternAnyFirst, FetchType::kPatternAnyLast); }
   //! Tests whether the fetch is the destination (special type).
@@ -118,13 +114,8 @@ public:
   //! Returns a byte offset of alpha channel that has been applied to source pointers srcp0 and srcp1.
   BL_INLINE_NODEBUG uint32_t alphaOffsetApplied() const noexcept { return _alphaOffsetApplied; }
 
-  //! Tests whether the fetch is currently initialized for a rectangular fill.
-  BL_INLINE_NODEBUG bool isRectFill() const noexcept { return _isRectFill; }
   //! Returns the pixel granularity passed to `FetchPath::init()`.
   BL_INLINE_NODEBUG uint32_t pixelGranularity() const noexcept { return _pixelGranularity; }
-
-  BL_INLINE_NODEBUG bool isComplexFetch() const noexcept { return _isComplexFetch; }
-  BL_INLINE_NODEBUG void setComplexFetch(bool value) noexcept { _isComplexFetch = value; }
 
   //! \}
 
@@ -176,14 +167,6 @@ public:
 
   //! Fetches N pixels to `p` and advances by N.
   virtual void fetch(Pixel& p, PixelCount n, PixelFlags flags, PixelPredicate& predicate) noexcept;
-
-  //! \}
-
-  //! \name Utilities
-  //! \{
-
-  //! Fetches 8 pixels by calling fetch() twice to fetch 4 pixels each time.
-  void _fetch2x4(Pixel& p, PixelFlags flags) noexcept;
 
   //! \}
 };

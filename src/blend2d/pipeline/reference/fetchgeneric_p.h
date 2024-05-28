@@ -305,8 +305,8 @@ struct FetchPatternHorzExtendCtxRoR {
     blUnused(rectWidth);
 
     _initPattern(pattern);
-    _tx = intptr_t(IntOps::pmod(uintptr_t(xPos) + _tx, _rx));
-    if (uintptr_t(_tx) >= _w)
+    _tx = intptr_t(IntOps::pmod(uintptr_t(xPos) + uintptr_t(_tx), _rx));
+    if (_tx >= intptr_t(_w))
       _tx -= intptr_t(_rx);
   }
 
@@ -320,7 +320,7 @@ struct FetchPatternHorzExtendCtxRoR {
   }
 
   BL_INLINE void spanStart(uint32_t xPos) noexcept {
-    _x = IntOps::pmod(intptr_t(xPos) + _tx, intptr_t(_rx));
+    _x = IntOps::pmod(uintptr_t(xPos) + uintptr_t(_tx), uintptr_t(_rx));
     if (_x >= intptr_t(_w))
       _x -= _rx;
   }
@@ -329,7 +329,7 @@ struct FetchPatternHorzExtendCtxRoR {
     blUnused(xPos);
 
     _x += xDiff;
-    if (uintptr_t(_x) >= _w) {
+    if (_x >= intptr_t(_w)) {
       _x = IntOps::pmod(uintptr_t(_x), _rx);
       if (_x >= intptr_t(_w)) {
         _x -= _rx;
@@ -342,7 +342,8 @@ struct FetchPatternHorzExtendCtxRoR {
   }
 
   BL_INLINE size_t index() const noexcept {
-    return blMin<uintptr_t>(_x, _x ^ IntOps::allOnes<uintptr_t>()) * kBPP;
+    uintptr_t mask = IntOps::sar(_x, bl::IntOps::bitSizeOf<intptr_t>() - 1u);
+    return (uintptr_t(_x) ^ mask) * kBPP;
   }
 
   BL_INLINE void advance1() noexcept {
@@ -377,17 +378,17 @@ struct FetchPatternAffineCtx {
     tw_th = Vec::i32x2{int(pattern->affine.tw), int(pattern->affine.th)};
   }
 
-  BL_INLINE void normalizePxPy(Vec::u64x2& v) noexcept {
+  BL_INLINE Vec::u64x2 normalizePxPy(const Vec::u64x2& v) const noexcept {
     uint32_t x = uint32_t(int32_t(v.x >> 32) % tw_th.x);
     uint32_t y = uint32_t(int32_t(v.y >> 32) % tw_th.y);
 
-    if (int32_t(x) < 0) x += rx_ry.x;
-    if (int32_t(y) < 0) y += rx_ry.y;
+    if (int32_t(x) < 0) x += uint32_t(rx_ry.x);
+    if (int32_t(y) < 0) y += uint32_t(rx_ry.y);
 
-    if (int32_t(x) > ox_oy.x) x -= rx_ry.x;
-    if (int32_t(y) > ox_oy.y) y -= rx_ry.y;
+    if (int32_t(x) > ox_oy.x) x -= uint32_t(rx_ry.x);
+    if (int32_t(y) > ox_oy.y) y -= uint32_t(rx_ry.y);
 
-    v = Vec::u64x2{(uint64_t(x) << 32) | (v.x & 0xFFFFFFFF), (uint64_t(y) << 32) | (v.y & 0xFFFFFFFF)};
+    return Vec::u64x2{(uint64_t(x) << 32) | (v.x & 0xFFFFFFFF), (uint64_t(y) << 32) | (v.y & 0xFFFFFFFF)};
   }
 
   BL_INLINE void rectInitY(ContextData* ctxData, const FetchData::Pattern* pattern, uint32_t xPos, uint32_t yPos, uint32_t rectWidth) noexcept {
@@ -400,8 +401,7 @@ struct FetchPatternAffineCtx {
   BL_INLINE void rectStartX(uint32_t xPos) noexcept {
     blUnused(xPos);
 
-    px_py = tx_ty;
-    normalizePxPy(px_py);
+    px_py = normalizePxPy(tx_ty);
   }
 
   BL_INLINE void spanInitY(ContextData* ctxData, const FetchData::Pattern* pattern, uint32_t yPos) noexcept {
@@ -412,15 +412,13 @@ struct FetchPatternAffineCtx {
   }
 
   BL_INLINE void spanStartX(uint32_t xPos) noexcept {
-    px_py = tx_ty + xx_xy * uint64_t(xPos);
-    normalizePxPy(px_py);
+    px_py = normalizePxPy(tx_ty + xx_xy * uint64_t(xPos));
   }
 
   BL_INLINE void spanAdvanceX(uint32_t xPos, uint32_t xDiff) noexcept {
-    blUnused(xDiff);
+    blUnused(xPos);
 
-    px_py += xx_xy * uint64_t(xPos);
-    normalizePxPy(px_py);
+    px_py = normalizePxPy(px_py + xx_xy * uint64_t(xDiff));
   }
 
   BL_INLINE void spanEndX(uint32_t xPos) noexcept {
@@ -605,27 +603,25 @@ struct FetchPatternFxFyAny : public FetchNonSolid {
 
   FetchPatternVertFyExtendCtxAny _ctxY;
   CtxX _ctxX;
-  typename PixelType::Unpacked _prev;
+  typename PixelType::Unpacked _pAcc;
 
   uint32_t _wa;
   uint32_t _wb;
   uint32_t _wc;
   uint32_t _wd;
 
-  BL_INLINE void _initPrevX() noexcept {
+  BL_INLINE void _initAccX() noexcept {
     size_t index = _ctxX.index();
     PixelType p0 = PixelIO<PixelType, kFormat>::fetch(_ctxY.pixelPtr0() + index);
     PixelType p1 = PixelIO<PixelType, kFormat>::fetch(_ctxY.pixelPtr1() + index);
 
     auto pA = p0.unpack() * Pixel::Repeat{_wa};
     auto pC = p1.unpack() * Pixel::Repeat{_wc};
-
-    _prev = pA + pC;
-    _ctxX.advance1();
+    _pAcc = pA + pC;
   }
 
-  BL_INLINE void _updatePrevX(const typename PixelType::Unpacked& p) noexcept {
-    _prev = p;
+  BL_INLINE void _updateAccX(const typename PixelType::Unpacked& p) noexcept {
+    _pAcc = p;
   }
 
   BL_INLINE void _initFxFy(const FetchData::Pattern* pattern) noexcept {
@@ -646,7 +642,7 @@ struct FetchPatternFxFyAny : public FetchNonSolid {
 
   BL_INLINE void rectStartX(uint32_t xPos) noexcept {
     _ctxX.rectStart(xPos);
-    _initPrevX();
+    _initAccX();
   }
 
   BL_INLINE void spanInitY(ContextData* ctxData, const void* fetchData, uint32_t yPos) noexcept {
@@ -660,14 +656,12 @@ struct FetchPatternFxFyAny : public FetchNonSolid {
 
   BL_INLINE void spanStartX(uint32_t xPos) noexcept {
     _ctxX.spanStart(xPos);
-    _initPrevX();
+    _initAccX();
   }
 
   BL_INLINE void spanAdvanceX(uint32_t xPos, uint32_t xDiff) noexcept {
-    if (xDiff) {
-      _ctxX.spanAdvance(xPos, xDiff - 1);
-      _initPrevX();
-    }
+    _ctxX.spanAdvance(xPos, xDiff);
+    _initAccX();
   }
 
   BL_INLINE void spanEndX(uint32_t xPos) noexcept {
@@ -679,15 +673,14 @@ struct FetchPatternFxFyAny : public FetchNonSolid {
   }
 
   BL_INLINE PixelType fetch() noexcept {
-    size_t index = _ctxX.index();
     _ctxX.advance1();
 
+    size_t index = _ctxX.index();
     auto pixel0 = PixelIO<PixelType, kFormat>::fetch(_ctxY.pixelPtr0() + index).unpack();
     auto pixel1 = PixelIO<PixelType, kFormat>::fetch(_ctxY.pixelPtr1() + index).unpack();
+    auto unpacked = pixel0 * Pixel::Repeat{_wb} + pixel1 * Pixel::Repeat{_wd} + _pAcc;
 
-    auto unpacked = pixel0 * Pixel::Repeat{_wb} + pixel1 * Pixel::Repeat{_wd} + _prev;
-    _updatePrevX(pixel0 * Pixel::Repeat{_wa} + pixel1 * Pixel::Repeat{_wc});
-
+    _updateAccX(pixel0 * Pixel::Repeat{_wa} + pixel1 * Pixel::Repeat{_wc});
     return unpacked.div256().pack();
   }
 };
@@ -783,19 +776,22 @@ struct FetchPatternAffineBIAny : public FetchPatternAffineNNBase<DstPixelT, kFor
 
     _ctx.advanceX();
 
-    uint32_t wa = ((256 - wy) * (256 - wx) + 255) >> 8; // [x0 y0]
-    uint32_t wb = ((256 - wy) * (      wx)      ) >> 8; // [x1 y0]
-    uint32_t wc = ((      wy) * (256 - wx) + 255) >> 8; // [x0 y1]
-    uint32_t wd = ((      wy) * (      wx)      ) >> 8; // [x1 y1]
+    uint32_t ix = 256 - wx;
+    uint32_t iy = 256 - wy;
 
     const uint8_t* line0 = _pixelData + intptr_t(index0.y) * _stride;
     const uint8_t* line1 = _pixelData + intptr_t(index1.y) * _stride;
 
-    auto p = PixelIO<PixelType, kFormat>::fetch(line0 + size_t(index0.x) * kSrcBPP).unpack() * Pixel::Repeat{wa} +
-             PixelIO<PixelType, kFormat>::fetch(line0 + size_t(index1.x) * kSrcBPP).unpack() * Pixel::Repeat{wb} +
-             PixelIO<PixelType, kFormat>::fetch(line1 + size_t(index0.x) * kSrcBPP).unpack() * Pixel::Repeat{wc} +
-             PixelIO<PixelType, kFormat>::fetch(line1 + size_t(index1.x) * kSrcBPP).unpack() * Pixel::Repeat{wd} ;
-    return p.div256().pack();
+    auto p0 = PixelIO<PixelType, kFormat>::fetch(line0 + size_t(index0.x) * kSrcBPP).unpack() * Pixel::Repeat{iy} +
+              PixelIO<PixelType, kFormat>::fetch(line1 + size_t(index0.x) * kSrcBPP).unpack() * Pixel::Repeat{wy} ;
+
+    auto p1 = PixelIO<PixelType, kFormat>::fetch(line0 + size_t(index1.x) * kSrcBPP).unpack() * Pixel::Repeat{iy} +
+              PixelIO<PixelType, kFormat>::fetch(line1 + size_t(index1.x) * kSrcBPP).unpack() * Pixel::Repeat{wy} ;
+
+    p0 = p0.div256() * Pixel::Repeat{ix};
+    p1 = p1.div256() * Pixel::Repeat{wx};
+
+    return (p0 + p1).div256().pack();
   }
 };
 

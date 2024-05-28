@@ -227,6 +227,7 @@ void FetchContext::_initFetchRegs() noexcept {
   bool packed = (_fetchMode == FetchMode::kA8FromA8_PA ||
                  _fetchMode == FetchMode::kA8FromRGBA32_PA ||
                  _fetchMode == FetchMode::kRGBA32FromA8_PC ||
+                 _fetchMode == FetchMode::kRGBA32FromA8_UC ||
                  _fetchMode == FetchMode::kRGBA32FromRGBA32_PC ||
                  _fetchMode == FetchMode::kRGBA64FromRGBA64_PC);
 
@@ -247,6 +248,10 @@ void FetchContext::_initFetchRegs() noexcept {
     }
 
     case FetchMode::kRGBA32FromA8_PC: {
+#if defined(BL_JIT_ARCH_X86)
+      alphaAccSize = packed && pixelCount <= 4 ? uint32_t(4u) : uint32_t(_pc->registerSize());
+#endif // BL_JIT_ARCH_X86
+
       _laneCount = blMin<uint32_t>(8u << uint32_t(_pc->use512BitSimd()), pixelCount);
 
       fullByteCount = pixelCount * 4u;
@@ -259,6 +264,10 @@ void FetchContext::_initFetchRegs() noexcept {
     }
 
     case FetchMode::kRGBA32FromA8_UC: {
+#if defined(BL_JIT_ARCH_X86)
+      alphaAccSize = packed && pixelCount <= 4 ? uint32_t(4u) : uint32_t(_pc->registerSize());
+#endif // BL_JIT_ARCH_X86
+
       _laneCount = blMin<uint32_t>(8u, pixelCount);
 
       fullByteCount = pixelCount * 8u;
@@ -323,12 +332,10 @@ void FetchContext::_initFetchRegs() noexcept {
 #if defined(BL_JIT_ARCH_X86)
   // Let's only use GP accumulator on X86 platform as that's pretty easy to implement and
   // it's fast. Other platforms seem to be just okay with SIMD lane to lane insertion.
-  if (alphaAccSize) {
-    if (alphaAccSize <= 4)
-      _aAcc = _pc->newGp32("@aAcc");
-    else
-      _aAcc = _pc->newGp64("@aAcc");
-  }
+  if (alphaAccSize > 4)
+    _aAcc = _pc->newGp64("@aAcc");
+  else if (alphaAccSize > 0)
+    _aAcc = _pc->newGp32("@aAcc");
 
   _widening256Op = WideningOp::kNone;
   _widening512Op = WideningOp::kNone;
@@ -408,6 +415,8 @@ void FetchContext::fetchPixel(const Mem& src) noexcept {
   BL_ASSERT(_pixelIndex < pixelCount);
 
   Vec v = _p128[_vecIndex];
+  BL_ASSERT(v.isValid());
+
   Mem m(src);
 
   uint32_t quantity = (_pixelIndex + 2u == pixelCount && _gatherMode == GatherMode::kNeverFull) ? 2u : 1u;
@@ -461,41 +470,48 @@ void FetchContext::fetchPixel(const Mem& src) noexcept {
         _pc->load_merge_u8(_aAcc, m);
 
       _pc->ror(_aAcc, _aAcc, (packed ? 8u : 16u) * quantity);
+
+      uint32_t accBytesScale = packed ? 1 : 2;
+      uint32_t accBytes = (_aAccIndex + quantity) * accBytesScale;
+
       _aAccIndex++;
 
-      uint32_t accBytes = packed ? _aAccIndex : _aAccIndex * 2u;
-      if (accBytes == accByteSize || _pixelIndex + quantity == pixelCount) {
-        uint32_t dstByteIndex = packed ? _laneIndex : _laneIndex * 2u;
+      if (accBytes >= accByteSize || _pixelIndex + quantity >= pixelCount) {
+        if (accByteSize == 4) {
+          uint32_t dstLaneIndex = (packed ? _laneIndex : _laneIndex * 2u) / 4u;
 
-        if (dstByteIndex == 0) {
-          _pc->s_mov(v, _aAcc);
-        }
-        else if (accByteSize == 4) {
-          if (!_pc->hasSSE4_1()) {
-            if (dstByteIndex == 4) {
+          if (dstLaneIndex == 0) {
+            _pc->s_mov(v, _aAcc);
+          }
+          else if (!_pc->hasSSE4_1()) {
+            if (dstLaneIndex == 1) {
               _pc->s_mov(_pTmp[0], _aAcc);
               _pc->v_interleave_lo_u32(v, v, _pTmp[0]);
             }
-            else if (dstByteIndex == 8) {
+            else if (dstLaneIndex == 2) {
               _pc->s_mov(_pTmp[0], _aAcc);
             }
-            else if (dstByteIndex == 12) {
+            else if (dstLaneIndex == 3) {
               _pc->s_mov(_pTmp[1], _aAcc);
               _pc->v_interleave_lo_u32(_pTmp[0], _pTmp[0], _pTmp[1]);
               _pc->v_interleave_lo_u64(v, v, _pTmp[0]);
             }
           }
           else {
-            _pc->s_insert_u32(v, _aAcc, dstByteIndex / 4u);
+            _pc->s_insert_u32(v, _aAcc, dstLaneIndex);
           }
         }
         else {
-          if (!_pc->hasSSE4_1()) {
+          uint32_t dstLaneIndex = (packed ? _laneIndex : _laneIndex * 2u) / 8u;
+          if (dstLaneIndex == 0) {
+            _pc->s_mov(v, _aAcc);
+          }
+          else if (!_pc->hasSSE4_1()) {
             _pc->s_mov(_pTmp[0], _aAcc);
             _pc->v_interleave_lo_u64(v, v, _pTmp[0]);
           }
           else {
-            _pc->s_insert_u64(v, _aAcc, dstByteIndex / 8u);
+            _pc->s_insert_u64(v, _aAcc, dstLaneIndex);
           }
         }
 

@@ -191,7 +191,7 @@ Signature initPatternAffine(FetchData::Pattern& fetchData, BLExtendMode extendMo
                  fetchData.src.stride >= 0 &&
                  fetchData.src.stride <= intptr_t(Traits::maxValue<int16_t>());
 
-  // TODO: [JIT] Not implemented for bilinear yet.
+  // TODO: [JIT] OPTIMIZATION: Not implemented for bilinear yet.
   if (quality == BL_PATTERN_QUALITY_BILINEAR)
     opt = 0;
 #else
@@ -293,7 +293,7 @@ Signature initPatternAffine(FetchData::Pattern& fetchData, BLExtendMode extendMo
   // Normalize the matrix in a way that it won't overflow the pattern more than once per a single iteration. Happens
   // when scaling part is very small. Only useful for repeated / reflected cases.
   if (extendX == BL_EXTEND_MODE_PAD) {
-    tw_d = 4294967296.0;
+    tw_d = 2147483647.0;
   }
   else {
     tx = fmod(tx, tw_d);
@@ -302,7 +302,7 @@ Signature initPatternAffine(FetchData::Pattern& fetchData, BLExtendMode extendMo
   }
 
   if (extendY == BL_EXTEND_MODE_PAD) {
-    th_d = 4294967296.0;
+    th_d = 2147483647.0;
   }
   else {
     ty = fmod(ty, th_d);

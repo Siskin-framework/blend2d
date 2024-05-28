@@ -205,6 +205,9 @@ public:
       _gatherMode(mode),
       _fetchDone(false) { _init(n); }
 
+  BL_INLINE_NODEBUG FetchMode fetchMode() const noexcept { return _fetchMode; }
+  BL_INLINE_NODEBUG GatherMode gatherMode() const noexcept { return _gatherMode; }
+
   void _init(PixelCount n) noexcept;
   void _initFetchMode() noexcept;
   void _initFetchRegs() noexcept;

@@ -38,7 +38,7 @@ enum class FMinMaxOpBehavior : uint8_t {
 
 //! The behavior of floating point `madd` instructions.
 enum class FMulAddOpBehavior : uint8_t {
-  //! FMA is not available, thus `madd` is translated to two instructions (MUL + ADD).
+  //! FMA is not available, thus `madd` is translated into two instructions (MUL + ADD).
   kNoFMA,
   //! FMA is available, the ISA allows to store the result to any of the inputs (X86).
   kFMAStoreToAny,
@@ -1184,7 +1184,7 @@ public:
   //! \name Allocators
   //! \{
 
-  inline asmjit::ZoneAllocator* zoneAllocator() noexcept { return &cc->_allocator; }
+  BL_INLINE_NODEBUG asmjit::ZoneAllocator* zoneAllocator() noexcept { return &cc->_allocator; }
 
   //! \}
 
@@ -1340,6 +1340,11 @@ public:
   BL_INLINE_NODEBUG bool hasNonDestructiveSrc() const noexcept { return true; }
 
 #endif // BL_JIT_ARCH_A64
+
+  //! Returns a native register signature, either 32-bit or 64-bit depending on the target architecture).
+  BL_INLINE_NODEBUG OperandSignature gpSignature() const noexcept { return cc->gpSignature(); }
+  //! Clones the given `reg` register into a native register (either 32-bit or 64-bit depending on the target architecture).
+  BL_INLINE_NODEBUG Gp gpz(const Gp& reg) const noexcept { return cc->gpz(reg); }
 
   //! Returns the behavior of scalar operations (mostly floating point).
   BL_INLINE_NODEBUG ScalarOpBehavior scalarOpBehavior() const noexcept { return _scalarOpBehavior; }
@@ -2783,17 +2788,23 @@ public:
   template<typename Dst, typename Src>
   BL_INLINE void shiftOrRotateLeft(const Dst& dst, const Src& src, uint32_t n) noexcept {
   #if defined(BL_JIT_ARCH_X86)
-    v_sllb_u128(dst, src, n);
+    if ((n & 3) == 0)
+      v_alignr_u128(dst, src, src, (16u - n) & 15);
+    else
+      v_sllb_u128(dst, src, n);
   #else
     // This doesn't rely on a zero constant on AArch64, which is okay as we don't care what's shifted in.
-    v_alignr_u128(dst, src, src, 15 - n);
+    v_alignr_u128(dst, src, src, (16u - n) & 15);
   #endif
   }
 
   template<typename Dst, typename Src>
   BL_INLINE void shiftOrRotateRight(const Dst& dst, const Src& src, uint32_t n) noexcept {
   #if defined(BL_JIT_ARCH_X86)
-    v_srlb_u128(dst, src, n);
+    if ((n & 3) == 0)
+      v_alignr_u128(dst, src, src, n);
+    else
+      v_srlb_u128(dst, src, n);
   #else
     // This doesn't rely on a zero constant on AArch64, which is okay as we don't care what's shifted in.
     v_alignr_u128(dst, src, src, n);
@@ -2857,10 +2868,7 @@ public:
 
       v_div_f64(d, a, b);
       v_cvt_trunc_f64_to_i32_lo(t, d);
-      v_cvt_i32_lo_to_f64(t, t);
-      v_cmp_lt_f64(d, d, t);
-      v_and_f64(d, d, simdMemConst(&commonTable.f64_m1, Bcst::k64, d));
-      v_add_f64(d, d, t);
+      v_cvt_i32_lo_to_f64(d, t);
       v_mul_f64(d, d, b);
     }
     else

@@ -27,8 +27,6 @@ public:
 
   //! Fill type.
   FillType _fillType;
-  //! True if this a pure rectangle fill (either axis-aligned or fractional).
-  bool _isRectFill;
 
   FillPart(PipeCompiler* pc, FillType fillType, FetchPixelPtrPart* dstPart, CompOpPart* compOpPart) noexcept;
 
@@ -58,7 +56,6 @@ public:
   //! Rectangle fills have some properties that can be exploited by other parts. For example if a fill is rectangular
   //! the pipeline may recalculate stride of source and destination pointers to address the width. There are currently
   //! many optimizations that individual parts do.
-  BL_INLINE_NODEBUG bool isRectFill() const noexcept { return _isRectFill; }
   BL_INLINE_NODEBUG bool isAnalyticFill() const noexcept { return _fillType == FillType::kAnalytic; }
 
   //! Compiles the fill part.

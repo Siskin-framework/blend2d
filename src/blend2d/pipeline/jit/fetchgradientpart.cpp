@@ -8,11 +8,9 @@
 
 #include "../../pipeline/jit/compoppart_p.h"
 #include "../../pipeline/jit/fetchgradientpart_p.h"
-#include "../../pipeline/jit/fetchutils_p.h"
 #include "../../pipeline/jit/fetchutilspixelaccess_p.h"
+#include "../../pipeline/jit/fetchutilspixelgather_p.h"
 #include "../../pipeline/jit/pipecompiler_p.h"
-
-#include "../../pipeline/jit/pipedebug_p.h"
 
 namespace bl {
 namespace Pipeline {
@@ -23,10 +21,10 @@ namespace JIT {
 // bl::Pipeline::JIT::GradientDitheringContext
 // ===========================================
 
-#if defined(BL_JIT_ARCH_X86)
 static void rotateDitherBytesRight(PipeCompiler* pc, const Vec& vec, const Gp& count) noexcept {
-  Gp countAsIndex = Gp(pc->cc->_gpSignature, count.id());
+  Gp countAsIndex = pc->gpz(count);
 
+#if defined(BL_JIT_ARCH_X86)
   if (!pc->hasSSSE3()) {
     Mem lo = pc->tmpStack(PipeCompiler::StackId::kCustom, 32);
     Mem hi = lo.cloneAdjusted(16);
@@ -40,34 +38,31 @@ static void rotateDitherBytesRight(PipeCompiler* pc, const Vec& vec, const Gp& c
 
     return;
   }
+#endif
 
   Mem mPred = pc->simdMemConst(pc->ct.swizu8_rotate_right, Bcst::kNA, vec);
-  mPred.setIndex(countAsIndex);
 
+#if defined(BL_JIT_ARCH_X86)
+  mPred.setIndex(countAsIndex);
   if (!pc->hasAVX()) {
     Vec vPred = pc->newSimilarReg(vec, "@vPred");
     pc->v_loadu128(vPred, mPred);
     pc->v_swizzlev_u8(vec, vec, vPred);
     return;
   }
+#else
+  Gp base = pc->newGpPtr("@swizu8_rotate_base");
+  pc->cc->loadAddressOf(base, mPred);
+  mPred = mem_ptr(base, countAsIndex);
+#endif
 
   pc->v_swizzlev_u8(vec, vec, mPred);
 }
-#else
-static void rotateDitherBytesRight(PipeCompiler* pc, const Vec& vec, const Gp& count) noexcept {
-  Gp base = pc->newGpPtr("@swizu8_rotate_right");
-  Gp offset = Gp(pc->cc->_gpSignature, count.id());
-
-  pc->lea(base, pc->simdMemConst(pc->ct.swizu8_rotate_right, Bcst::kNA, vec));
-  pc->v_swizzlev_u8(vec, vec, a64::ptr(base, offset));
-}
-#endif
 
 void GradientDitheringContext::initY(const PipeFunction& fn, const Gp& x, const Gp& y) noexcept {
   _dmPosition = pc->newGp32("dm.position");
   _dmOriginX = pc->newGp32("dm.originX");
   _dmValues = pc->newVec(pc->vecWidth(), "dm.values");
-
   _isRectFill = x.isValid();
 
   pc->load_u32(_dmPosition, mem_ptr(fn.ctxData(), BL_OFFSET_OF(ContextData, pixelOrigin.y)));
@@ -181,7 +176,7 @@ void GradientDitheringContext::ditherUnpackedPixels(Pixel& p, AdvanceMode advanc
     case 8:
     case 16: {
 #if defined(BL_JIT_ARCH_X86)
-      if (!p.uc[0].isXmm()) {
+      if (!p.uc[0].isVec128()) {
         for (uint32_t i = 0; i < p.uc.size(); i++) {
           // At least AVX2: VPSHUFB is available...
           pc->v_swizzlev_u8(ditherPredicate, dmValues.cloneAs(ditherPredicate), shufflePredicate);
@@ -189,7 +184,7 @@ void GradientDitheringContext::ditherUnpackedPixels(Pixel& p, AdvanceMode advanc
           pc->v_adds_u16(p.uc[i], p.uc[i], ditherPredicate);
           pc->v_min_u16(p.uc[i], p.uc[i], ditherThreshold);
 
-          Swizzle4 swiz = p.uc[0].isYmm() ? swizzle(0, 3, 2, 1) : swizzle(1, 0, 3, 2);
+          Swizzle4 swiz = p.uc[0].isVec256() ? swizzle(0, 3, 2, 1) : swizzle(1, 0, 3, 2);
 
           if (advanceMode == AdvanceMode::kNoAdvance) {
             if (i + 1 == p.uc.size()) {
@@ -315,10 +310,11 @@ FetchLinearGradientPart::FetchLinearGradientPart(PipeCompiler* pc, FetchType fet
       BL_NOT_REACHED();
   }
 
-  _isComplexFetch = true;
-  _partFlags |= PipePartFlags::kMaskedAccess | PipePartFlags::kAdvanceXNeedsDiff;
   _maxVecWidthSupported = VecWidth::kMaxPlatformWidth;
 
+  addPartFlags(PipePartFlags::kExpensive |
+               PipePartFlags::kMaskedAccess |
+               PipePartFlags::kAdvanceXNeedsDiff);
   setDitheringEnabled(dither);
   JitUtils::resetVarStruct(&f, sizeof(f));
 }
@@ -687,8 +683,6 @@ void FetchLinearGradientPart::fetch(Pixel& p, PixelCount n, PixelFlags flags, Pi
 FetchRadialGradientPart::FetchRadialGradientPart(PipeCompiler* pc, FetchType fetchType, FormatExt format) noexcept
   : FetchGradientPart(pc, fetchType, format) {
 
-  _isComplexFetch = true;
-  _partFlags |= PipePartFlags::kMaskedAccess | PipePartFlags::kAdvanceXNeedsDiff;
   _maxVecWidthSupported = VecWidth::kMaxPlatformWidth;
 
   bool dither = false;
@@ -715,6 +709,9 @@ FetchRadialGradientPart::FetchRadialGradientPart(PipeCompiler* pc, FetchType fet
       BL_NOT_REACHED();
   }
 
+  addPartFlags(PipePartFlags::kAdvanceXNeedsDiff |
+               PipePartFlags::kMaskedAccess |
+               PipePartFlags::kExpensive);
   setDitheringEnabled(dither);
   JitUtils::resetVarStruct(&f, sizeof(f));
 }
@@ -1150,10 +1147,9 @@ FetchUtils::IndexLayout FetchRadialGradientPart::applyExtend(const Vec& idx0, co
 FetchConicGradientPart::FetchConicGradientPart(PipeCompiler* pc, FetchType fetchType, FormatExt format) noexcept
   : FetchGradientPart(pc, fetchType, format) {
 
-  _isComplexFetch = true;
-  _partFlags |= PipePartFlags::kMaskedAccess;
   _maxVecWidthSupported = VecWidth::kMaxPlatformWidth;
 
+  addPartFlags(PipePartFlags::kMaskedAccess | PipePartFlags::kExpensive);
   setDitheringEnabled(fetchType == FetchType::kGradientConicDither);
   JitUtils::resetVarStruct(&f, sizeof(f));
 }

@@ -33,6 +33,12 @@ void fetchVec32(PipeCompiler* pc, const VecArray& dVec, Gp sPtr, uint32_t n, Adv
 void storeVec8(PipeCompiler* pc, const Gp& dPtr, const VecArray& sVec, uint32_t n, AdvanceMode advanceMode, PixelPredicate& predicate) noexcept;
 void storeVec32(PipeCompiler* pc, const Gp& dPtr, const VecArray& sVec, uint32_t n, AdvanceMode advanceMode, PixelPredicate& predicate) noexcept;
 
+// bl::Pipeline::Jit::FetchUtils - Fetch Miscellaneous
+// ===================================================
+
+void fetchSecond32BitElement(PipeCompiler* pc, const Vec& vec, const Mem& src) noexcept;
+void fetchThird32BitElement(PipeCompiler* pc, const Vec& vec, const Mem& src) noexcept;
+
 // bl::Pipeline::Jit::FetchUtils - Predicated Fetch & Store
 // ========================================================
 
@@ -51,9 +57,10 @@ void fetchMaskA8AndAdvance(PipeCompiler* pc, VecArray& vm, const Gp& mPtr, Pixel
 // ==============================================
 
 //! Fetches 1 pixel to a vector or scalar register in `p` from memory location `src_`.
-void fetchPixel(PipeCompiler* pc, Pixel& p, PixelFlags flags, FormatExt format, const Mem& src_) noexcept;
+void fetchPixel(PipeCompiler* pc, Pixel& p, PixelFlags flags, FormatExt format, Mem sMem) noexcept;
 
 //! Fetches `n` pixels to vector register(s) in `p` from memory location `src_`.
+void fetchPixels(PipeCompiler* pc, Pixel& p, PixelCount n, PixelFlags flags, FormatExt format, const Mem& sMem, Alignment alignment) noexcept;
 void fetchPixels(PipeCompiler* pc, Pixel& p, PixelCount n, PixelFlags flags, FormatExt format, const Gp& sPtr, Alignment alignment, AdvanceMode advanceMode) noexcept;
 void fetchPixels(PipeCompiler* pc, Pixel& p, PixelCount n, PixelFlags flags, FormatExt format, const Gp& sPtr, Alignment alignment, AdvanceMode advanceMode, PixelPredicate& predicate) noexcept;
 

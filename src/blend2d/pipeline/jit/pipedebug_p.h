@@ -112,11 +112,11 @@ struct PipeDebug {
   }
 
   static void _printGp32Cb(const char* key, int32_t value) noexcept {
-    blRuntimeMessageFmt("%s=%d\n", key, (int)value);
+    blRuntimeMessageFmt("%s=%08X (%u) (%d)\n", key, (unsigned int)value, (unsigned int)value, (int)value);
   }
 
   static void _printGp64Cb(const char* key, int64_t value) noexcept {
-    blRuntimeMessageFmt("%s=%lld\n", key, (long long)value);
+    blRuntimeMessageFmt("%s=%016X (%llu) (%lld)\n", key, (unsigned long long)value, (unsigned long long)value, (long long)value);
   }
 
   static void _printXmmPiCb(const char* key, const void* data) noexcept {

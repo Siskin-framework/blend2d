@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Zlib
 // Official GitHub Repository: https://github.com/blend2d/blend2d
 //
-// Copyright (c) 2017-2023 The Blend2D Authors
+// Copyright (c) 2017-2024 The Blend2D Authors
 //
 // This software is provided 'as-is', without any express or implied
 // warranty. In no event will the authors be held liable for any damages
@@ -73,6 +73,7 @@
 #include "blend2d/random.h"
 #include "blend2d/rgba.h"
 #include "blend2d/runtime.h"
+#include "blend2d/runtimescope.h"
 #include "blend2d/string.h"
 #include "blend2d/var.h"
 

@@ -2689,9 +2689,19 @@ public:
       case  69: return 0.2f;
       case  79: return 0.3f;
       case  99: return -Math::inf<float>();
+      case 100:
+      case 102:
+      case 104:
+      case 106:
+      case 108: return float(rng.nextDouble());
+      case 110:
+      case 112:
+      case 114:
+      case 116:
+      case 118: return -float(rng.nextDouble());
       case 122: return 10.3f;
       case 123: return 20.3f;
-      case 124: return 100.3f;
+      case 124: return -100.3f;
       case 127: return 1.3f;
       case 130: return Math::nan<float>();
       case 135: return -Math::inf<float>();
@@ -2699,8 +2709,15 @@ public:
       case 143: return 1.5f;
       case 144: return 2.0f;
       case 145: return Math::inf<float>();
+      case 155: return -1.5f;
+      case 165: return -0.5f;
+      case 175: return -1.0f;
       case 245: return 2.5f;
-      default : return float(rng.nextDouble() * double(rng.nextUInt32() & 0xFFFFFFu));
+
+      default: {
+        float sign = rng.nextUInt32() < 0x7FFFFFF ? 1.0f : -1.0f;
+        return float(rng.nextDouble() * double(rng.nextUInt32() & 0xFFFFFFu)) * sign;
+      }
     }
   }
 
@@ -2733,9 +2750,19 @@ public:
       case  69: return 0.2;
       case  79: return 0.3;
       case  99: return -Math::inf<double>();
+      case 100:
+      case 102:
+      case 104:
+      case 106:
+      case 108: return rng.nextDouble();
+      case 110:
+      case 112:
+      case 114:
+      case 116:
+      case 118: return -rng.nextDouble();
       case 122: return 10.3;
       case 123: return 20.3;
-      case 124: return 100.3;
+      case 124: return -100.3;
       case 127: return 1.3;
       case 130: return Math::nan<double>();
       case 135: return -Math::inf<double>();
@@ -2743,8 +2770,15 @@ public:
       case 143: return 1.5;
       case 144: return 2.0;
       case 145: return Math::inf<double>();
+      case 155: return -1.5;
+      case 165: return -0.5;
+      case 175: return -1.0;
       case 245: return 2.5;
-      default : return double(rng.nextDouble() * double(rng.nextUInt32() & 0x3FFFFFFFu));
+
+      default: {
+        double sign = rng.nextUInt32() < 0x7FFFFFF ? 1.0 : -1.0;
+        return double(rng.nextDouble() * double(rng.nextUInt32() & 0x3FFFFFFFu)) * sign;
+      }
     }
   }
 };
@@ -5445,7 +5479,7 @@ static void test_a64_ops(JitContext& ctx, const asmjit::CpuFeatures& hostFeature
 }
 #endif // BL_JIT_ARCH_A64
 
-UNIT(pipecompiler, /*BL_TEST_GROUP_PIPELINE_JIT_COMPILER*/ -999) {
+UNIT(pipecompiler, BL_TEST_GROUP_PIPELINE_JIT_COMPILER) {
   JitContext ctx;
   asmjit::CpuFeatures hostFeatures = asmjit::CpuInfo::host().features();
 

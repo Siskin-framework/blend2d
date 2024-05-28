@@ -79,8 +79,8 @@ public:
     Vec pixL;
 
     // Weights used in RGBA mode.
-    Vec wb_wb;
-    Vec wd_wd;
+    Vec wa, wb, wc, wd;
+
     Vec wa_wb;
     Vec wc_wd;
 

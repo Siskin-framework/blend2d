@@ -262,7 +262,7 @@ static BLResult BL_CDECL blPipeGenRuntimeGet(PipeRuntime* self_, uint32_t signat
         }
         else if (fetchType >= FetchType::kPatternAnyFirst && fetchType <= FetchType::kPatternAnyLast) {
           uint32_t patternIndex = uint32_t(fetchType) - uint32_t(FetchType::kPatternAnyFirst);
-          switch (s.dstFormat()) {
+          switch (s.srcFormat()) {
             case FormatExt::kPRGB32:
               fillFunc = prgb32_fill_pattern_prgb32_funcs[compOpIndex].funcs[fillTypeIdx * FillPatternFuncTable::kPatternTypeCount + patternIndex];
               break;
@@ -289,7 +289,7 @@ static BLResult BL_CDECL blPipeGenRuntimeGet(PipeRuntime* self_, uint32_t signat
         }
         else if (fetchType >= FetchType::kPatternAnyFirst && fetchType <= FetchType::kPatternAnyLast) {
           uint32_t patternIndex = uint32_t(fetchType) - uint32_t(FetchType::kPatternAnyFirst);
-          switch (s.dstFormat()) {
+          switch (s.srcFormat()) {
             case FormatExt::kPRGB32:
               fillFunc = a8_fill_pattern_prgb32_funcs[compOpIndex].funcs[fillTypeIdx * FillPatternFuncTable::kPatternTypeCount + patternIndex];
               break;

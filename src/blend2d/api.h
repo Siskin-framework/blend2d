@@ -216,7 +216,7 @@
 #define BL_MAKE_VERSION(MAJOR, MINOR, PATCH) (((MAJOR) << 16) | ((MINOR) << 8) | (PATCH))
 
 //! Blend2D library version.
-#define BL_VERSION BL_MAKE_VERSION(0, 10, 6)
+#define BL_VERSION BL_MAKE_VERSION(0, 11, 0)
 
 //! \}
 //! \}
@@ -602,6 +602,7 @@ BL_FORWARD_DECLARE_STRUCT(BLRange);
 BL_FORWARD_DECLARE_STRUCT(BLRandom);
 BL_FORWARD_DECLARE_STRUCT(BLFileCore);
 
+BL_FORWARD_DECLARE_STRUCT(BLRuntimeScopeCore);
 BL_FORWARD_DECLARE_STRUCT(BLRuntimeBuildInfo);
 BL_FORWARD_DECLARE_STRUCT(BLRuntimeSystemInfo);
 BL_FORWARD_DECLARE_STRUCT(BLRuntimeResourceInfo);
@@ -748,6 +749,7 @@ BL_FORWARD_DECLARE_STRUCT(BLVarCore);
 // C++ API.
 #ifdef __cplusplus
 class BLFile;
+class BLRuntimeScope;
 template<typename T> class BLArray;
 class BLBitArray;
 class BLBitSet;

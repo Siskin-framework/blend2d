@@ -30,7 +30,7 @@ FetchSolidPart::FetchSolidPart(PipeCompiler* pc, FormatExt format) noexcept
   _partFlags |= PipePartFlags::kMaskedAccess;
 
   _maxPixels = kUnlimitedMaxPixels;
-  _maxVecWidthSupported = VecWidth::k512;
+  _maxVecWidthSupported = VecWidth::kMaxPlatformWidth;
   _pixel.setCount(PixelCount(1));
 }
 
