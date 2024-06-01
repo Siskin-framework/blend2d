@@ -202,16 +202,46 @@ static BL_INLINE Vec cloneVecAs(const Vec& src, VecWidth vw) noexcept {
 //! on initialization.
 class OpArray {
 public:
-  enum : uint32_t { kMaxSize = 4 };
+  using Op = Operand_;
+  static constexpr uint32_t kMaxSize = 8;
 
   uint32_t _size;
   Operand_ v[kMaxSize];
 
   BL_INLINE_NODEBUG OpArray() noexcept { reset(); }
-  BL_INLINE_NODEBUG explicit OpArray(const Operand_& op0) noexcept { init(op0); }
-  BL_INLINE_NODEBUG OpArray(const Operand_& op0, const Operand_& op1) noexcept { init(op0, op1); }
-  BL_INLINE_NODEBUG OpArray(const Operand_& op0, const Operand_& op1, const Operand_& op2) noexcept { init(op0, op1, op2); }
-  BL_INLINE_NODEBUG OpArray(const Operand_& op0, const Operand_& op1, const Operand_& op2, const Operand_& op3) noexcept { init(op0, op1, op2, op3); }
+
+  BL_INLINE_NODEBUG explicit OpArray(const Op& op0) noexcept {
+    init(op0);
+  }
+
+  BL_INLINE_NODEBUG OpArray(const Op& op0, const Op& op1) noexcept {
+    init(op0, op1);
+  }
+
+  BL_INLINE_NODEBUG OpArray(const Op& op0, const Op& op1, const Op& op2) noexcept {
+    init(op0, op1, op2);
+  }
+
+  BL_INLINE_NODEBUG OpArray(const Op& op0, const Op& op1, const Op& op2, const Op& op3) noexcept {
+    init(op0, op1, op2, op3);
+  }
+
+  BL_INLINE_NODEBUG OpArray(const Op& op0, const Op& op1, const Op& op2, const Op& op3, const Op& op4) noexcept {
+    init(op0, op1, op2, op3, op4);
+  }
+
+  BL_INLINE_NODEBUG OpArray(const Op& op0, const Op& op1, const Op& op2, const Op& op3, const Op& op4, const Op& op5) noexcept {
+    init(op0, op1, op2, op3, op4, op5);
+  }
+
+  BL_INLINE_NODEBUG OpArray(const Op& op0, const Op& op1, const Op& op2, const Op& op3, const Op& op4, const Op& op5, const Op& op6) noexcept {
+    init(op0, op1, op2, op3, op4, op5, op6);
+  }
+
+  BL_INLINE_NODEBUG OpArray(const Op& op0, const Op& op1, const Op& op2, const Op& op3, const Op& op4, const Op& op5, const Op& op6, const Op& op7) noexcept {
+    init(op0, op1, op2, op3, op4, op5, op6, op7);
+  }
+
   BL_INLINE_NODEBUG OpArray(const OpArray& other) noexcept { init(other); }
 
   BL_INLINE_NODEBUG OpArray& operator=(const OpArray& other) noexcept {
@@ -228,43 +258,92 @@ protected:
     _size = di;
   }
 
-public:
-  BL_INLINE_NODEBUG void init(const Operand_& op0) noexcept {
-    _size = 1;
-    v[0] = op0;
-    v[1].reset();
-    v[2].reset();
-    v[3].reset();
+  BL_INLINE_NODEBUG void _resetFrom(uint32_t index) noexcept {
+    for (uint32_t i = index; i < kMaxSize; i++) {
+      v[index].reset();
+    }
   }
 
-  BL_INLINE_NODEBUG void init(const Operand_& op0, const Operand_& op1) noexcept {
+public:
+  BL_INLINE_NODEBUG void init(const Op& op0) noexcept {
+    _size = 1;
+    v[0] = op0;
+    _resetFrom(1);
+  }
+
+  BL_INLINE_NODEBUG void init(const Op& op0, const Op& op1) noexcept {
     _size = 2;
     v[0] = op0;
     v[1] = op1;
-    v[2].reset();
-    v[3].reset();
+    _resetFrom(2);
   }
 
-  BL_INLINE_NODEBUG void init(const Operand_& op0, const Operand_& op1, const Operand_& op2) noexcept {
+  BL_INLINE_NODEBUG void init(const Op& op0, const Op& op1, const Op& op2) noexcept {
     _size = 3;
     v[0] = op0;
     v[1] = op1;
     v[2] = op2;
-    v[3].reset();
+    _resetFrom(3);
   }
 
-  BL_INLINE_NODEBUG void init(const Operand_& op0, const Operand_& op1, const Operand_& op2, const Operand_& op3) noexcept {
+  BL_INLINE_NODEBUG void init(const Op& op0, const Op& op1, const Op& op2, const Op& op3) noexcept {
     _size = 4;
     v[0] = op0;
     v[1] = op1;
     v[2] = op2;
     v[3] = op3;
+    _resetFrom(4);
   }
 
-  BL_INLINE_NODEBUG void init(const Operand_* array, uint32_t size) noexcept {
+  BL_INLINE_NODEBUG void init(const Op& op0, const Op& op1, const Op& op2, const Op& op3, const Op& op4) noexcept {
+    _size = 5;
+    v[0] = op0;
+    v[1] = op1;
+    v[2] = op2;
+    v[3] = op3;
+    v[4] = op4;
+    _resetFrom(5);
+  }
+
+  BL_INLINE_NODEBUG void init(const Op& op0, const Op& op1, const Op& op2, const Op& op3, const Op& op4, const Op& op5) noexcept {
+    _size = 6;
+    v[0] = op0;
+    v[1] = op1;
+    v[2] = op2;
+    v[3] = op3;
+    v[4] = op4;
+    v[5] = op5;
+    _resetFrom(6);
+  }
+
+  BL_INLINE_NODEBUG void init(const Op& op0, const Op& op1, const Op& op2, const Op& op3, const Op& op4, const Op& op5, const Op& op6) noexcept {
+    _size = 7;
+    v[0] = op0;
+    v[1] = op1;
+    v[2] = op2;
+    v[3] = op3;
+    v[4] = op4;
+    v[5] = op5;
+    v[6] = op6;
+    _resetFrom(7);
+  }
+
+  BL_INLINE_NODEBUG void init(const Op& op0, const Op& op1, const Op& op2, const Op& op3, const Op& op4, const Op& op5, const Op& op6, const Op& op7) noexcept {
+    _size = 7;
+    v[0] = op0;
+    v[1] = op1;
+    v[2] = op2;
+    v[3] = op3;
+    v[4] = op4;
+    v[5] = op5;
+    v[6] = op6;
+    v[7] = op7;
+  }
+
+  BL_INLINE_NODEBUG void init(const Op* array, uint32_t size) noexcept {
     _size = size;
     if (size)
-      memcpy(v, array, size * sizeof(Operand_));
+      memcpy(v, array, size * sizeof(Op));
   }
 
   BL_INLINE_NODEBUG void init(const OpArray& other) noexcept {
@@ -288,6 +367,8 @@ public:
 
   //! Returns the number of vector elements.
   BL_INLINE_NODEBUG uint32_t size() const noexcept { return _size; }
+  //! Returns the maximum size of vector elements.
+  BL_INLINE_NODEBUG uint32_t maxSize() const noexcept { return kMaxSize; }
 
   BL_INLINE bool equals(const OpArray& other) const noexcept {
     size_t count = size();
@@ -329,11 +410,33 @@ public:
 class VecArray : public OpArray {
 public:
   BL_INLINE_NODEBUG VecArray() noexcept : OpArray() {}
-  BL_INLINE_NODEBUG explicit VecArray(const Vec& op0) noexcept : OpArray(op0) {}
-  BL_INLINE_NODEBUG VecArray(const Vec& op0, const Vec& op1) noexcept : OpArray(op0, op1) {}
-  BL_INLINE_NODEBUG VecArray(const Vec& op0, const Vec& op1, const Vec& op2) noexcept : OpArray(op0, op1, op2) {}
-  BL_INLINE_NODEBUG VecArray(const Vec& op0, const Vec& op1, const Vec& op2, const Vec& op3) noexcept : OpArray(op0, op1, op2, op3) {}
-  BL_INLINE_NODEBUG VecArray(const VecArray& other) noexcept : OpArray(other) {}
+
+  BL_INLINE_NODEBUG explicit VecArray(const Vec& op0) noexcept
+    : OpArray(op0) {}
+
+  BL_INLINE_NODEBUG VecArray(const Vec& op0, const Vec& op1) noexcept
+    : OpArray(op0, op1) {}
+
+  BL_INLINE_NODEBUG VecArray(const Vec& op0, const Vec& op1, const Vec& op2) noexcept
+    : OpArray(op0, op1, op2) {}
+
+  BL_INLINE_NODEBUG VecArray(const Vec& op0, const Vec& op1, const Vec& op2, const Vec& op3) noexcept
+    : OpArray(op0, op1, op2, op3) {}
+
+  BL_INLINE_NODEBUG VecArray(const Vec& op0, const Vec& op1, const Vec& op2, const Vec& op3, const Vec& op4) noexcept
+    : OpArray(op0, op1, op2, op3, op4) {}
+
+  BL_INLINE_NODEBUG VecArray(const Vec& op0, const Vec& op1, const Vec& op2, const Vec& op3, const Vec& op4, const Vec& op5) noexcept
+    : OpArray(op0, op1, op2, op3, op4, op5) {}
+
+  BL_INLINE_NODEBUG VecArray(const Vec& op0, const Vec& op1, const Vec& op2, const Vec& op3, const Vec& op4, const Vec& op5, const Vec& op6) noexcept
+    : OpArray(op0, op1, op2, op3, op4, op5, op6) {}
+
+  BL_INLINE_NODEBUG VecArray(const Vec& op0, const Vec& op1, const Vec& op2, const Vec& op3, const Vec& op4, const Vec& op5, const Vec& op6, const Vec& op7) noexcept
+    : OpArray(op0, op1, op2, op3, op4, op5, op6, op7) {}
+
+  BL_INLINE_NODEBUG VecArray(const VecArray& other) noexcept
+    : OpArray(other) {}
 
   BL_INLINE_NODEBUG VecArray& operator=(const VecArray& other) noexcept {
     init(other);
@@ -341,16 +444,49 @@ public:
   }
 
 protected:
-  BL_INLINE_NODEBUG VecArray(const VecArray& other, uint32_t n, uint32_t from, uint32_t inc) noexcept : OpArray(other, n, from, inc) {}
+  BL_INLINE_NODEBUG VecArray(const VecArray& other, uint32_t n, uint32_t from, uint32_t inc) noexcept
+    : OpArray(other, n, from, inc) {}
 
 public:
-  BL_INLINE_NODEBUG void init(const Vec& op0) noexcept { OpArray::init(op0); }
-  BL_INLINE_NODEBUG void init(const Vec& op0, const Vec& op1) noexcept { OpArray::init(op0, op1); }
-  BL_INLINE_NODEBUG void init(const Vec& op0, const Vec& op1, const Vec& op2) noexcept { OpArray::init(op0, op1, op2); }
-  BL_INLINE_NODEBUG void init(const Vec& op0, const Vec& op1, const Vec& op2, const Vec& op3) noexcept { OpArray::init(op0, op1, op2, op3); }
+  BL_INLINE_NODEBUG void init(const Vec& op0) noexcept {
+    OpArray::init(op0);
+  }
 
-  BL_INLINE_NODEBUG void init(const Vec* array, uint32_t size) noexcept { OpArray::init(array, size); }
-  BL_INLINE_NODEBUG void init(const VecArray& other) noexcept { OpArray::init(other); }
+  BL_INLINE_NODEBUG void init(const Vec& op0, const Vec& op1) noexcept {
+    OpArray::init(op0, op1);
+  }
+
+  BL_INLINE_NODEBUG void init(const Vec& op0, const Vec& op1, const Vec& op2) noexcept {
+    OpArray::init(op0, op1, op2);
+  }
+
+  BL_INLINE_NODEBUG void init(const Vec& op0, const Vec& op1, const Vec& op2, const Vec& op3) noexcept {
+    OpArray::init(op0, op1, op2, op3);
+  }
+
+  BL_INLINE_NODEBUG void init(const Vec& op0, const Vec& op1, const Vec& op2, const Vec& op3, const Vec& op4) noexcept {
+    OpArray::init(op0, op1, op2, op3, op4);
+  }
+
+  BL_INLINE_NODEBUG void init(const Vec& op0, const Vec& op1, const Vec& op2, const Vec& op3, const Vec& op4, const Vec& op5) noexcept {
+    OpArray::init(op0, op1, op2, op3, op4, op5);
+  }
+
+  BL_INLINE_NODEBUG void init(const Vec& op0, const Vec& op1, const Vec& op2, const Vec& op3, const Vec& op4, const Vec& op5, const Vec& op6) noexcept {
+    OpArray::init(op0, op1, op2, op3, op4, op5, op6);
+  }
+
+  BL_INLINE_NODEBUG void init(const Vec& op0, const Vec& op1, const Vec& op2, const Vec& op3, const Vec& op4, const Vec& op5, const Vec& op6, const Vec& op7) noexcept {
+    OpArray::init(op0, op1, op2, op3, op4, op5, op6, op7);
+  }
+
+  BL_INLINE_NODEBUG void init(const Vec* array, uint32_t size) noexcept {
+    OpArray::init(array, size);
+  }
+
+  BL_INLINE_NODEBUG void init(const VecArray& other) noexcept {
+    OpArray::init(other);
+  }
 
   BL_INLINE Vec& operator[](size_t index) noexcept {
     BL_ASSERT(index < _size);

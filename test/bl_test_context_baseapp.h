@@ -17,6 +17,11 @@ namespace ContextTests {
 
 class BaseTestApp {
 public:
+  struct TestInfo {
+    BLString name;
+    BLString id;
+  };
+
   TestOptions defaultOptions {};
   TestOptions options {};
   BLFontData fontData;
@@ -51,18 +56,19 @@ public:
     }
   }
 
-  void printAppInfo(const char* title) const;
+  void printAppInfo(const char* title, bool quiet) const;
   void printCommonOptions(const TestOptions& defaultOptions) const;
-  void printStyles() const;
+  void printFormats() const;
   void printCompOps() const;
   void printOpacityOps() const;
-  void printFormats() const;
+  void printStyleIds() const;
+  void printStyleOps() const;
   void printCommands() const;
 
-  bool runMultiple(CommandId commandId, const char* testName, ContextTester& aTester, ContextTester& bTester, uint32_t maxDiff);
-  void findProblem(CommandId commandId, const char* testName, ContextTester& aTester, ContextTester& bTester, uint32_t maxDiff);
+  bool runMultiple(CommandId commandId, const TestInfo& info, ContextTester& aTester, ContextTester& bTester, uint32_t maxDiff);
+  void findProblem(CommandId commandId, const TestInfo& info, ContextTester& aTester, ContextTester& bTester, uint32_t maxDiff);
 
-  bool checkOutput(const char* testName, const ContextTester& aTester, const ContextTester& bTester, uint32_t maxDiff);
+  bool checkOutput(const char* testId, const ContextTester& aTester, const ContextTester& bTester, uint32_t maxDiff);
   void storeImage(const BLImage& image, const char* name, const char* suffix = nullptr) const;
 };
 

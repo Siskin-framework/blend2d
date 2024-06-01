@@ -237,8 +237,8 @@ static const constexpr FillPatternFuncTable a8_fill_pattern_a8_funcs[2] = {
 };
 
 static const constexpr FillGradientFuncTable a8_fill_gradient_funcs[2] = {
-  get_fill_gradient_func_table<FormatExt::kA8, 4, Reference::CompOp_SrcOver_Op<Reference::Pixel::P8_Alpha>>(),
-  get_fill_gradient_func_table<FormatExt::kA8, 4, Reference::CompOp_SrcCopy_Op<Reference::Pixel::P8_Alpha>>()
+  get_fill_gradient_func_table<FormatExt::kA8, 1, Reference::CompOp_SrcOver_Op<Reference::Pixel::P8_Alpha>>(),
+  get_fill_gradient_func_table<FormatExt::kA8, 1, Reference::CompOp_SrcCopy_Op<Reference::Pixel::P8_Alpha>>()
 };
 
 static BLResult BL_CDECL blPipeGenRuntimeGet(PipeRuntime* self_, uint32_t signature, DispatchData* dispatchData, PipeLookupCache* cache) noexcept {

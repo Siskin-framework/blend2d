@@ -379,13 +379,14 @@ static BL_INLINE bool initNonSolidFetchData(
     case BL_OBJECT_TYPE_PATTERN: {
       const BLPattern* pattern = static_cast<const BLPattern*>(style);
       BLPatternImpl* patternI = PatternInternal::getImpl(pattern);
+      BLImageCore* image = &patternI->image;
 
       if BL_CONSTEXPR (Applier::kIsExplicit) {
         // Reinitialize this style to use the image instead of the pattern if this is an explicit operation.
         // The reason is that we don't need the BLPattern data once the FetchData is initialized, so if the
         // user reinitializes the pattern for multiple calls we would save one memory allocation each time
         // the pattern is reinitialized.
-        fetchData->initStyleObject(&patternI->image);
+        fetchData->initStyleObject(image);
         fetchData->initDestroyFunc(destroyFetchDataImage);
       }
       else {
@@ -411,8 +412,6 @@ static BL_INLINE bool initNonSolidFetchData(
 
       BLPatternQuality quality = BLPatternQuality(ctxI->hints().patternQuality);
       BLExtendMode extendMode = PatternInternal::getExtendMode(pattern);
-
-      BLImageCore* image = &patternI->image;
       BLImageImpl* imageI = ImageInternal::getImpl(image);
 
       fetchData->extra.format = uint8_t(imageI->format);
@@ -427,6 +426,7 @@ static BL_INLINE bool initNonSolidFetchData(
       const BLGradient* gradient = static_cast<const BLGradient*>(style);
       BLGradientPrivateImpl* gradientI = GradientInternal::getImpl(gradient);
 
+      fetchData->initStyleObject(gradient);
       if BL_CONSTEXPR (Applier::kIsExplicit)
         fetchData->initDestroyFunc(destroyFetchDataGradient);
       else
@@ -1318,8 +1318,6 @@ static BL_NOINLINE BLResultT<RenderCallResolvedOp> resolveExplicitStyleOp(BLRast
     NonSolidFetchExplicitApplier applier;
     if (!initNonSolidFetchData(ctxI, fetchData, style, styleType, kTransformMode, applier))
       return BLResultT<RenderCallResolvedOp>{BL_SUCCESS, kNop};
-
-    fetchData->initStyleObject(style);
     format = FormatExt(fetchData->extra.format);
   }
 
@@ -1472,7 +1470,7 @@ template<>
 BL_INLINE_NODEBUG BLResult finalizeExplicitOp<kAsync>(BLRasterContextImpl* ctxI, RenderFetchData* fetchData, BLResult result) noexcept {
   // The reference count of FetchData is always incremented when a command using it is enqueued. Initially it's zero, so check for one.
   if (fetchData->refCount == 1u) {
-    ImageInternal::retainInstance(static_cast<BLImageCore*>(&fetchData->style));
+    ObjectInternal::retainInstance(&fetchData->style);
     advanceFetchPtr(ctxI);
   }
   return result;
@@ -4257,6 +4255,7 @@ static BLResult attach(BLRasterContextImpl* ctxI, BLImageCore* image, const BLCo
         }
 
         pipeRuntime = isolatedRT;
+        baseZone.align(baseZone.blockAlignment());
       }
     }
 #endif

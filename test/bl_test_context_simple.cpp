@@ -41,17 +41,18 @@ public:
 
     printCommonOptions(defaultOptions);
     printCommands();
-    printStyles();
+    printFormats();
     printCompOps();
     printOpacityOps();
-    printFormats();
+    printStyleIds();
+    printStyleOps();
 
     fflush(stdout);
     return 0;
   }
 
   int run(CmdLine cmdLine) {
-    printAppInfo("Blend2D Rendering Context Tester");
+    printAppInfo("Blend2D Rendering Context Tester", cmdLine.hasArg("--quiet"));
 
     if (cmdLine.hasArg("--help"))
       return help();
@@ -62,7 +63,6 @@ public:
     ContextTester tester("simple");
 
     tester.seed(options.seed);
-    tester.setStyle(options.style);
     tester.setFontData(fontData);
     tester.setFlushSync(options.flushSync);
 
@@ -74,27 +74,28 @@ public:
       return 1;
     }
 
-    BLString testName;
+    BLString testId;
     dispatchRuns([&](CommandId commandId, CompOp compOp, OpacityOp opacityOp) {
-      printf("Testing [%s | %s | %s | %s]:\n",
-        StringUtils::commandIdToString(commandId),
-        StringUtils::compOpToString(compOp),
-        StringUtils::opacityOpToString(opacityOp),
-        StringUtils::styleIdToString(options.style));
+      if (!options.quiet) {
+        printf("Testing [%s | %s | %s | %s]:\n",
+          StringUtils::commandIdToString(commandId),
+          StringUtils::compOpToString(compOp),
+          StringUtils::opacityOpToString(opacityOp),
+          StringUtils::styleIdToString(options.styleId));
+      }
 
-      testName.assignFormat("test-simple-%s-%s-%s-%s",
+      testId.assignFormat("test-simple-%s-%s-%s-%s",
         StringUtils::commandIdToString(commandId),
         StringUtils::compOpToString(compOp),
         StringUtils::opacityOpToString(opacityOp),
-        StringUtils::styleIdToString(options.style));
+        StringUtils::styleIdToString(options.styleId));
 
       tester.clear();
-      tester.setCompOp(compOp);
-      tester.setOpacityOp(opacityOp);
+      tester.setOptions(compOp, opacityOp, options.styleId, options.styleOp);
       tester.render(commandId, options.count, options);
 
       if (options.storeImages) {
-        storeImage(tester.image(), testName.data());
+        storeImage(tester.image(), testId.data());
       }
     });
 

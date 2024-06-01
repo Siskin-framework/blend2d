@@ -909,7 +909,7 @@ void FetchContext::_doneVec(uint32_t index) noexcept {
       case WideningOp::kUnpack: {
         if ((index & 0x1u) == 1u) {
           uint32_t index512 = index / 2u;
-          uint32_t index256 = index;
+          uint32_t index256 = index / 2u;
           _pc->v_cvt_u8_lo_to_u16(_p512[index512], _p256[index256]);
         }
         break;

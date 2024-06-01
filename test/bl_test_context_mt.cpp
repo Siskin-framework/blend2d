@@ -18,7 +18,6 @@ namespace ContextTests {
 
 class MTTestApp : public BaseTestApp {
 public:
-  uint64_t mismatchCount {};
   uint32_t failedCount {};
   uint32_t passedCount {};
 
@@ -47,10 +46,11 @@ public:
     printf("\n");
 
     printCommands();
-    printStyles();
+    printFormats();
     printCompOps();
     printOpacityOps();
-    printFormats();
+    printStyleIds();
+    printStyleOps();
 
     fflush(stdout);
     return 0;
@@ -64,7 +64,7 @@ public:
   }
 
   int run(CmdLine cmdLine) {
-    printAppInfo("Blend2D Multi-Threaded Rendering Context Tester");
+    printAppInfo("Blend2D Multi-Threaded Rendering Context Tester", cmdLine.hasArg("--quiet"));
 
     if (cmdLine.hasArg("--help"))
       return help();
@@ -74,9 +74,6 @@ public:
 
     ContextTester aTester("st");
     ContextTester bTester("mt");
-
-    aTester.setStyle(options.style);
-    bTester.setStyle(options.style);
 
     aTester.setFlushSync(options.flushSync);
     bTester.setFlushSync(options.flushSync);
@@ -92,27 +89,29 @@ public:
       return 1;
     }
 
-    BLString testName;
+    TestInfo info;
     dispatchRuns([&](CommandId commandId, CompOp compOp, OpacityOp opacityOp) {
-      printf("Testing [%s | %s | %s | %s]:\n",
+      info.name.assignFormat(
+        "%s | comp-op=%s | opacity=%s | style=%s",
         StringUtils::commandIdToString(commandId),
         StringUtils::compOpToString(compOp),
         StringUtils::opacityOpToString(opacityOp),
-        StringUtils::styleIdToString(options.style));
+        StringUtils::styleIdToString(options.styleId));
 
-      testName.assignFormat("%s-%s-%s-%s",
+      info.id.assignFormat("%s-%s-%s-%s",
         StringUtils::commandIdToString(commandId),
         StringUtils::compOpToString(compOp),
         StringUtils::opacityOpToString(opacityOp),
-        StringUtils::styleIdToString(options.style));
+        StringUtils::styleIdToString(options.styleId));
 
-      aTester.setCompOp(compOp);
-      bTester.setCompOp(compOp);
+      if (!options.quiet) {
+        printf("Testing [%s]:\n", info.name.data());
+      }
 
-      aTester.setOpacityOp(opacityOp);
-      bTester.setOpacityOp(opacityOp);
+      aTester.setOptions(compOp, opacityOp, options.styleId, options.styleOp);
+      bTester.setOptions(compOp, opacityOp, options.styleId, options.styleOp);
 
-      if (runMultiple(commandId, testName.data(), aTester, bTester, 0))
+      if (runMultiple(commandId, info, aTester, bTester, 0))
         passedCount++;
       else
         failedCount++;
@@ -121,14 +120,16 @@ public:
     aTester.reset();
     bTester.reset();
 
-    printf("Testing finished...\n");
+    if (failedCount) {
+      printf("[FAILED] %u tests out of %u failed\n", failedCount, passedCount + failedCount);
+      return 1;
+    }
+    else {
+      printf("[PASSED] %u tests passed\n", passedCount);
+      return 0;
+    }
 
-    if (mismatchCount)
-      printf("Found %llu mismatches!\n", (unsigned long long)mismatchCount);
-    else
-      printf("No mismatches found!\n");
-
-    return mismatchCount ? 1 : 0;
+    return failedCount ? 1 : 0;
   }
 };
 

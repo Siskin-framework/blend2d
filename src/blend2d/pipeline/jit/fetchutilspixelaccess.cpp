@@ -1820,9 +1820,10 @@ static void fetchPixelsA8(PipeCompiler* pc, Pixel& p, PixelCount n, PixelFlags f
         case 16:
         case 32:
         case 64: {
-          uint32_t p32RegCount = VecWidthUtils::vecCountOf(p32Width, DataWidth::k32, n);
-
 #if defined(BL_JIT_ARCH_X86)
+          uint32_t p32RegCount = VecWidthUtils::vecCountOf(p32Width, DataWidth::k32, n);
+          BL_ASSERT(p32RegCount < VecArray::kMaxSize);
+
           if (pc->hasAVX512()) {
             VecArray p32;
             pc->newVecArray(p32, p32RegCount, p32Width, p.name(), "p32");
@@ -1924,24 +1925,6 @@ static void fetchPixelsA8(PipeCompiler* pc, Pixel& p, PixelCount n, PixelFlags f
           else
 #endif // BL_JIT_ARCH_X86
           {
-            /*
-            VecArray p32;
-
-            if (predicate.empty()) {
-              pc->newVecArray(p32, p32RegCount, paWidth, p.name(), "pa");
-              pc->v_loaduvec(p32, sMem);
-            }
-            else {
-              p32.init(predicatedPixel);
-            }
-
-            if (blTestFlag(flags, PixelFlags::kPA)) {
-            }
-            else {
-            }
-            */
-
-            // TODO: [JIT] UNIMPLEMENTED: Cannot merge without this functionality!
             BL_NOT_REACHED();
           }
 

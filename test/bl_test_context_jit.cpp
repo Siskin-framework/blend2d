@@ -30,7 +30,6 @@ public:
   uint32_t selectedCpuFeatures {};
   uint32_t maximumPixelDifference {};
 
-  uint64_t mismatchCount {};
   uint32_t failedCount {};
   uint32_t passedCount {};
 
@@ -95,10 +94,11 @@ public:
     printf("\n");
 
     printCommands();
-    printStyles();
+    printFormats();
     printCompOps();
     printOpacityOps();
-    printFormats();
+    printStyleIds();
+    printStyleOps();
 
     fflush(stdout);
     return 0;
@@ -159,22 +159,22 @@ public:
     return true;
   }
 
+  void stringifyFeatureId(BLString& out, uint32_t cpuFeatures) noexcept {
+    if (cpuFeatures)
+      out.assign(StringUtils::cpuX86FeatureToString(BLRuntimeCpuFeatures(cpuFeatures)));
+    else
+      out.assign("native");
+  }
+
   bool runWithFeatures(uint32_t cpuFeatures) {
     resetCounters();
-
-    if (cpuFeatures)
-      _cpuFeaturesString.assign(StringUtils::cpuX86FeatureToString(BLRuntimeCpuFeatures(cpuFeatures)));
-    else
-      _cpuFeaturesString.assign("native");
+    stringifyFeatureId(_cpuFeaturesString, cpuFeatures);
 
     BLString aTesterName;
     BLString bTesterName;
 
     ContextTester aTester("ref");
     ContextTester bTester("jit");
-
-    aTester.setStyle(options.style);
-    bTester.setStyle(options.style);
 
     aTester.setFontData(fontData);
     bTester.setFontData(fontData);
@@ -199,29 +199,31 @@ public:
       return 1;
     }
 
-    BLString testName;
+    TestInfo info;
     dispatchRuns([&](CommandId commandId, CompOp compOp, OpacityOp opacityOp) {
-      printf("Testing [%s | %s | %s | %s | %s]:\n",
+      info.name.assignFormat(
+          "%s | comp-op=%s | opacity=%s | style=%s | simd-level=%s",
+          StringUtils::commandIdToString(commandId),
+          StringUtils::compOpToString(compOp),
+          StringUtils::opacityOpToString(opacityOp),
+          StringUtils::styleIdToString(options.styleId),
+          _cpuFeaturesString.data());
+
+      info.id.assignFormat("%s-%s-%s-%s-%s",
         StringUtils::commandIdToString(commandId),
         StringUtils::compOpToString(compOp),
         StringUtils::opacityOpToString(opacityOp),
-        StringUtils::styleIdToString(options.style),
+        StringUtils::styleIdToString(options.styleId),
         _cpuFeaturesString.data());
 
-      testName.assignFormat("%s-%s-%s-%s-%s",
-        StringUtils::commandIdToString(commandId),
-        StringUtils::compOpToString(compOp),
-        StringUtils::opacityOpToString(opacityOp),
-        StringUtils::styleIdToString(options.style),
-        _cpuFeaturesString.data());
+      if (!options.quiet) {
+        printf("Testing [%s]:\n", info.name.data());
+      }
 
-      aTester.setCompOp(compOp);
-      bTester.setCompOp(compOp);
+      aTester.setOptions(compOp, opacityOp, options.styleId, options.styleOp);
+      bTester.setOptions(compOp, opacityOp, options.styleId, options.styleOp);
 
-      aTester.setOpacityOp(opacityOp);
-      bTester.setOpacityOp(opacityOp);
-
-      if (runMultiple(commandId, testName.data(), aTester, bTester, maximumPixelDifference))
+      if (runMultiple(commandId, info, aTester, bTester, maximumPixelDifference))
         passedCount++;
       else
         failedCount++;
@@ -232,14 +234,14 @@ public:
 
     if (mismatchCount)
       printf("Found %llu mismatches!\n\n", (unsigned long long)mismatchCount);
-    else
+    else if (!options.quiet)
       printf("\n");
 
     return !mismatchCount;
   }
 
   int run(CmdLine cmdLine) {
-    printAppInfo("Blend2D JIT Rendering Context Tester");
+    printAppInfo("Blend2D JIT Rendering Context Tester", cmdLine.hasArg("--quiet"));
 
     if (cmdLine.hasArg("--help"))
       return help();
@@ -266,6 +268,12 @@ public:
       for (const uint32_t& feature : x86FeaturesList) {
         if (!(systemInfo.cpuFeatures & feature))
           break;
+
+        if (options.quiet) {
+          stringifyFeatureId(_cpuFeaturesString, feature);
+          printf("Testing [%s] (quiet mode)\n", _cpuFeaturesString.data());
+        }
+
         runWithFeatures(feature);
       }
 #endif

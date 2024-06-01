@@ -44,6 +44,7 @@ enum class CommandId : uint32_t {
 enum class CompOp : uint32_t {
   kSrcOver,
   kSrcCopy,
+
   kRandom,
   kAll,
   kUnknown = 0xFFFFFFFFu
@@ -53,6 +54,7 @@ enum class OpacityOp : uint32_t {
   kOpaque,
   kSemi,
   kTransparent,
+
   kRandom,
   kAll,
   kUnknown
@@ -73,10 +75,18 @@ enum class StyleId : uint32_t {
   kPatternFxFy,
   kPatternAffineNearest,
   kPatternAffineBilinear,
-  kRandom,
 
+  kRandom,
   kMaxValue = kRandom,
   kUnknown = 0xFFFFFFFFu
+};
+
+enum class StyleOp : uint32_t {
+  kExplicit,
+  kImplicit,
+
+  kRandom,
+  kUnknown
 };
 
 namespace StringUtils {
@@ -134,8 +144,8 @@ static const char* formatToString(BLFormat format) {
   }
 }
 
-static const char* styleIdToString(StyleId style) {
-  switch (style) {
+static const char* styleIdToString(StyleId styleId) {
+  switch (styleId) {
     case StyleId::kSolid                : return "solid";
     case StyleId::kSolidOpaque          : return "solid-opaque";
     case StyleId::kGradientLinear       : return "gradient-linear";
@@ -151,6 +161,17 @@ static const char* styleIdToString(StyleId style) {
     case StyleId::kPatternAffineNearest : return "pattern-affine-nearest";
     case StyleId::kPatternAffineBilinear: return "pattern-affine-bilinear";
     case StyleId::kRandom               : return "random";
+
+    default:
+      return "unknown";
+  }
+}
+
+static const char* styleOpToString(StyleOp styleOp) {
+  switch (styleOp) {
+    case StyleOp::kExplicit             : return "explicit";
+    case StyleOp::kImplicit             : return "implicit";
+    case StyleOp::kRandom               : return "random";
 
     default:
       return "unknown";
@@ -221,6 +242,13 @@ static StyleId parseStyleId(const char* s) {
     if (strieq(s, styleIdToString(StyleId(i))))
       return StyleId(i);
   return StyleId::kUnknown;
+}
+
+static StyleOp parseStyleOp(const char* s) {
+  for (uint32_t i = 0; i <= uint32_t(StyleOp::kRandom); i++)
+    if (strieq(s, styleOpToString(StyleOp(i))))
+      return StyleOp(i);
+  return StyleOp::kUnknown;
 }
 
 static CompOp parseCompOp(const char* s) {
@@ -300,13 +328,14 @@ struct TestOptions {
   uint32_t seed {};
   CompOp compOp = CompOp::kSrcOver;
   OpacityOp opacityOp = OpacityOp::kOpaque;
-  StyleId style = StyleId::kSolid;
+  StyleId styleId = StyleId::kSolid;
+  StyleOp styleOp = StyleOp::kRandom;
   CommandId command = CommandId::kAll;
   const char* font {};
   uint32_t fontSize {};
   uint32_t faceIndex {};
 
-  bool verbose {};
+  bool quiet {};
   bool flushSync {};
   bool storeImages {};
 };
@@ -415,12 +444,14 @@ public:
   BLRandom _rndCompOp;
   BLRandom _rndOpacityOp;
   BLRandom _rndOpacityValue;
+  BLRandom _rndStyleOp;
   const char* _prefix {};
   BLImage _img;
   BLContext _ctx;
   CompOp _compOp {};
   OpacityOp _opacityOp {};
-  StyleId _style {};
+  StyleId _styleId {};
+  StyleOp _styleOp {};
   bool _flushSync {};
 
   BLImage _textures[kTextureCount];
@@ -498,9 +529,13 @@ public:
   }
 
   inline void seed(uint32_t seed) { _rnd.seed(seed); }
-  inline void setStyle(StyleId style) { _style = style; }
-  inline void setCompOp(CompOp compOp) { _compOp = compOp; }
-  inline void setOpacityOp(OpacityOp opacityOp) { _opacityOp = opacityOp; }
+  inline void setOptions(CompOp compOp, OpacityOp opacityOp, StyleId styleId, StyleOp styleOp) {
+    _compOp = compOp;
+    _opacityOp = opacityOp;
+    _styleId = styleId;
+    _styleOp = styleOp;
+  }
+
   inline void setFontData(const BLFontData& fontData) { _fontData = fontData; }
   inline void setFlushSync(bool value) { _flushSync = value; }
 
@@ -517,6 +552,7 @@ public:
     _rndCompOp.reset(0xBF4D32C15432343Fu);
     _rndOpacityOp.reset(0xFA4DF28C54880133u);
     _rndOpacityValue.reset(0xF987FCABB3434DDDu);
+    _rndStyleOp.reset(0x23BF4E98B4F3AABDu);
   }
 
   void finished(const char* testName) {
@@ -528,11 +564,18 @@ public:
       _ctx.flush(BL_CONTEXT_FLUSH_SYNC);
   }
 
-  inline StyleId nextStyle() {
-    StyleId style = _style;
-    if (style >= StyleId::kRandom)
-      style = StyleId(_rnd.nextUInt32() % uint32_t(StyleId::kRandom));
-    return style;
+  inline StyleId nextStyleId() {
+    StyleId styleId = _styleId;
+    if (styleId >= StyleId::kRandom)
+      styleId = StyleId(_rnd.nextUInt32() % uint32_t(StyleId::kRandom));
+    return styleId;
+  }
+
+  inline StyleOp nextStyleOp() {
+    if (_styleOp == StyleOp::kRandom)
+      return StyleOp(_rndStyleOp.nextUInt32() % uint32_t(StyleOp::kRandom));
+    else
+      return _styleOp;
   }
 
   void setupCommonOptions(BLContext& ctx) {
@@ -559,8 +602,8 @@ public:
     }
   }
 
-  void setupStyleOptions(BLContext& ctx, StyleId style) {
-    switch (style) {
+  void setupStyleOptions(BLContext& ctx, StyleId styleId) {
+    switch (styleId) {
       case StyleId::kGradientLinear:
       case StyleId::kGradientRadial:
       case StyleId::kGradientConic:
@@ -590,10 +633,10 @@ public:
     }
   }
 
-  BLVar getRandomStyleObject(StyleId style) {
+  BLVar materializeStyle(StyleId styleId) {
     static constexpr double kPI = 3.14159265358979323846;
 
-    switch (style) {
+    switch (styleId) {
       default:
       case StyleId::kSolid: {
         return BLVar(_rnd.nextRgba32());
@@ -667,11 +710,11 @@ public:
         pattern.translate(std::floor(_rnd.nextDouble() * double(_rnd._size.w + 200) - 100.0),
                           std::floor(_rnd.nextDouble() * double(_rnd._size.h + 200) - 100.0));
 
-        if (style == StyleId::kPatternFx || style == StyleId::kPatternFxFy) {
+        if (styleId == StyleId::kPatternFx || styleId == StyleId::kPatternFxFy) {
           pattern.translate(blClamp(_rnd.nextDouble(), kFracMin, kFracMax), 0.0);
         }
 
-        if (style == StyleId::kPatternFy || style == StyleId::kPatternFxFy) {
+        if (styleId == StyleId::kPatternFy || styleId == StyleId::kPatternFxFy) {
           pattern.translate(0.0, blClamp(_rnd.nextDouble(), kFracMin, kFracMax));
         }
 
@@ -787,23 +830,54 @@ public:
     finished(testName);
   }
 
-  static const char* opName(Op op) { return op == Op::kFill ? "Fill" : "Stroke"; }
+  template<Op kOp>
+  void renderPath(const BLPath& path, StyleId styleId) {
+    BLVar style = materializeStyle(styleId);
 
+    if (nextStyleOp() == StyleOp::kExplicit) {
+      if (kOp == Op::kFill)
+        _ctx.fillPath(path, style);
+      else
+        _ctx.strokePath(path, style);
+    }
+    else {
+      if (kOp == Op::kFill) {
+        _ctx.setFillStyle(style);
+        _ctx.fillPath(path);
+      }
+      else {
+        _ctx.setStrokeStyle(style);
+        _ctx.strokePath(path);
+      }
+    }
+  }
   template<Op kOp>
   void renderRectI(size_t n) {
     for (size_t i = 0; i < n; i++) {
-      StyleId style = nextStyle();
+      StyleId styleId = nextStyleId();
 
       setupCommonOptions(_ctx);
-      setupStyleOptions(_ctx, style);
+      setupStyleOptions(_ctx, styleId);
 
       BLRectI rect = _rnd.nextRectI();
+      BLVar style = materializeStyle(styleId);
 
-      if (kOp == Op::kFill)
-        _ctx.fillRect(rect, getRandomStyleObject(style));
-      else
-        _ctx.strokeRect(rect, getRandomStyleObject(style));
-
+      if (nextStyleOp() == StyleOp::kExplicit) {
+        if (kOp == Op::kFill)
+          _ctx.fillRect(rect, style);
+        else
+          _ctx.strokeRect(rect, style);
+      }
+      else {
+        if (kOp == Op::kFill) {
+          _ctx.setFillStyle(style);
+          _ctx.fillRect(rect);
+        }
+        else {
+          _ctx.setStrokeStyle(style);
+          _ctx.strokeRect(rect);
+        }
+      }
       recordIteration(i);
     }
   }
@@ -811,17 +885,30 @@ public:
   template<Op kOp>
   void renderRectD(size_t n) {
     for (size_t i = 0; i < n; i++) {
-      StyleId style = nextStyle();
+      StyleId styleId = nextStyleId();
 
       setupCommonOptions(_ctx);
-      setupStyleOptions(_ctx, style);
+      setupStyleOptions(_ctx, styleId);
 
       BLRect rect = _rnd.nextRectD();
+      BLVar style = materializeStyle(styleId);
 
-      if (kOp == Op::kFill)
-        _ctx.fillRect(rect, getRandomStyleObject(style));
-      else
-        _ctx.strokeRect(rect, getRandomStyleObject(style));
+      if (nextStyleOp() == StyleOp::kExplicit) {
+        if (kOp == Op::kFill)
+          _ctx.fillRect(rect, style);
+        else
+          _ctx.strokeRect(rect, style);
+      }
+      else {
+        if (kOp == Op::kFill) {
+          _ctx.setFillStyle(style);
+          _ctx.fillRect(rect, style);
+        }
+        else {
+          _ctx.setStrokeStyle(style);
+          _ctx.strokeRect(rect, style);
+        }
+      }
 
       recordIteration(i);
     }
@@ -830,20 +917,16 @@ public:
   template<Op kOp>
   void renderMultipleRects(size_t n) {
     for (size_t i = 0; i < n; i++) {
-      StyleId style = nextStyle();
+      StyleId styleId = nextStyleId();
 
       setupCommonOptions(_ctx);
-      setupStyleOptions(_ctx, style);
+      setupStyleOptions(_ctx, styleId);
 
       BLPath path;
       path.addRect(_rnd.nextRectD());
       path.addRect(_rnd.nextRectD());
 
-      if (kOp == Op::kFill)
-        _ctx.fillPath(path, getRandomStyleObject(style));
-      else
-        _ctx.strokePath(path, getRandomStyleObject(style));
-
+      renderPath<kOp>(path, styleId);
       recordIteration(i);
     }
   }
@@ -851,18 +934,32 @@ public:
   template<Op kOp>
   void renderRoundedRect(size_t n) {
     for (size_t i = 0; i < n; i++) {
-      StyleId style = nextStyle();
+      StyleId styleId = nextStyleId();
 
       setupCommonOptions(_ctx);
-      setupStyleOptions(_ctx, style);
+      setupStyleOptions(_ctx, styleId);
 
       BLRect rect = _rnd.nextRectD();
       BLPoint r = _rnd.nextPointD();
 
-      if (kOp == Op::kFill)
-        _ctx.fillRoundRect(rect.w, rect.y, rect.w, rect.h, r.x, r.y, getRandomStyleObject(style));
-      else
-        _ctx.strokeRoundRect(rect.w, rect.y, rect.w, rect.h, r.x, r.y, getRandomStyleObject(style));
+      BLVar style = materializeStyle(styleId);
+
+      if (nextStyleOp() == StyleOp::kExplicit) {
+        if (kOp == Op::kFill)
+          _ctx.fillRoundRect(rect.w, rect.y, rect.w, rect.h, r.x, r.y, style);
+        else
+          _ctx.strokeRoundRect(rect.w, rect.y, rect.w, rect.h, r.x, r.y, style);
+      }
+      else {
+        if (kOp == Op::kFill) {
+          _ctx.setFillStyle(style);
+          _ctx.fillRoundRect(rect.w, rect.y, rect.w, rect.h, r.x, r.y);
+        }
+        else {
+          _ctx.setStrokeStyle(style);
+          _ctx.strokeRoundRect(rect.w, rect.y, rect.w, rect.h, r.x, r.y);
+        }
+      }
 
       recordIteration(i);
     }
@@ -871,17 +968,30 @@ public:
   template<Op kOp>
   void renderTriangle(size_t n) {
     for (size_t i = 0; i < n; i++) {
-      StyleId style = nextStyle();
+      StyleId styleId = nextStyleId();
 
       setupCommonOptions(_ctx);
-      setupStyleOptions(_ctx, style);
+      setupStyleOptions(_ctx, styleId);
 
       BLTriangle t = _rnd.nextTriangle();
+      BLVar style = materializeStyle(styleId);
 
-      if (kOp == Op::kFill)
-        _ctx.fillTriangle(t, getRandomStyleObject(style));
-      else
-        _ctx.strokeTriangle(t, getRandomStyleObject(style));
+      if (nextStyleOp() == StyleOp::kExplicit) {
+        if (kOp == Op::kFill)
+          _ctx.fillTriangle(t, style);
+        else
+          _ctx.strokeTriangle(t, style);
+      }
+      else {
+        if (kOp == Op::kFill) {
+          _ctx.setFillStyle(style);
+          _ctx.fillTriangle(t);
+        }
+        else {
+          _ctx.setStrokeStyle(style);
+          _ctx.strokeTriangle(t);
+        }
+      }
 
       recordIteration(i);
     }
@@ -895,18 +1005,32 @@ public:
     BLString s;
 
     for (size_t i = 0; i < n; i++) {
-      StyleId style = nextStyle();
+      StyleId styleId = nextStyleId();
 
       setupCommonOptions(_ctx);
-      setupStyleOptions(_ctx, style);
+      setupStyleOptions(_ctx, styleId);
 
       for (uint32_t j = 0; j < kPointCount; j++)
         pt[j] = _rnd.nextPointD();
 
-      if (kOp == Op::kFill)
-        _ctx.fillPolygon(pt, 10, getRandomStyleObject(style));
-      else
-        _ctx.strokePolygon(pt, 10, getRandomStyleObject(style));
+      BLVar style = materializeStyle(styleId);
+
+      if (nextStyleOp() == StyleOp::kExplicit) {
+        if (kOp == Op::kFill)
+          _ctx.fillPolygon(pt, kPointCount, style);
+        else
+          _ctx.strokePolygon(pt, kPointCount, style);
+      }
+      else {
+        if (kOp == Op::kFill) {
+          _ctx.setFillStyle(style);
+          _ctx.fillPolygon(pt, kPointCount);
+        }
+        else {
+          _ctx.setStrokeStyle(style);
+          _ctx.strokePolygon(pt, kPointCount);
+        }
+      }
       recordIteration(i);
     }
   }
@@ -914,19 +1038,16 @@ public:
   template<Op kOp>
   void renderPathQuads(size_t n) {
     for (size_t i = 0; i < n; i++) {
-      StyleId style = nextStyle();
+      StyleId styleId = nextStyleId();
 
       setupCommonOptions(_ctx);
-      setupStyleOptions(_ctx, style);
+      setupStyleOptions(_ctx, styleId);
 
       BLPath path;
       path.moveTo(_rnd.nextPointD());
       path.quadTo(_rnd.nextPointD(), _rnd.nextPointD());
 
-      if (kOp == Op::kFill)
-        _ctx.fillPath(path, getRandomStyleObject(style));
-      else
-        _ctx.strokePath(path, getRandomStyleObject(style));
+      renderPath<kOp>(path, styleId);
       recordIteration(i);
     }
   }
@@ -934,19 +1055,16 @@ public:
   template<Op kOp>
   void renderPathCubics(size_t n) {
     for (size_t i = 0; i < n; i++) {
-      StyleId style = nextStyle();
+      StyleId styleId = nextStyleId();
 
       setupCommonOptions(_ctx);
-      setupStyleOptions(_ctx, style);
+      setupStyleOptions(_ctx, styleId);
 
       BLPath path;
       path.moveTo(_rnd.nextPointD());
       path.cubicTo(_rnd.nextPointD(), _rnd.nextPointD(), _rnd.nextPointD());
 
-      if (kOp == Op::kFill)
-        _ctx.fillPath(path, getRandomStyleObject(style));
-      else
-        _ctx.strokePath(path, getRandomStyleObject(style));
+      renderPath<kOp>(path, styleId);
       recordIteration(i);
     }
   }
@@ -956,10 +1074,10 @@ public:
     static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234567890!@#$%^&*()_{}:;<>?|";
 
     for (size_t i = 0; i < n; i++) {
-      StyleId style = nextStyle();
+      StyleId styleId = nextStyleId();
 
       setupCommonOptions(_ctx);
-      setupStyleOptions(_ctx, style);
+      setupStyleOptions(_ctx, styleId);
 
       BLFontFace face;
       face.createFromData(_fontData, faceIndex);
@@ -986,15 +1104,29 @@ public:
 
       BLPoint pt0 = _rnd.nextPointD();
       BLPoint pt1 = _rnd.nextPointD();
-      BLVar v = getRandomStyleObject(style);
+      BLVar style = materializeStyle(styleId);
 
-      if (kOp == Op::kFill) {
-        _ctx.fillUtf8Text(pt0, font, BLStringView{str0, 4}, v);
-        _ctx.fillUtf8Text(pt1, font, BLStringView{str1, 4}, v);
+      if (nextStyleOp() == StyleOp::kExplicit) {
+        if (kOp == Op::kFill) {
+          _ctx.fillUtf8Text(pt0, font, BLStringView{str0, 4}, style);
+          _ctx.fillUtf8Text(pt1, font, BLStringView{str1, 4}, style);
+        }
+        else {
+          _ctx.strokeUtf8Text(pt0, font, BLStringView{str0, 4}, style);
+          _ctx.strokeUtf8Text(pt1, font, BLStringView{str1, 4}, style);
+        }
       }
       else {
-        _ctx.strokeUtf8Text(pt0, font, BLStringView{str0, 4}, v);
-        _ctx.strokeUtf8Text(pt1, font, BLStringView{str1, 4}, v);
+        if (kOp == Op::kFill) {
+          _ctx.setFillStyle(style);
+          _ctx.fillUtf8Text(pt0, font, BLStringView{str0, 4});
+          _ctx.fillUtf8Text(pt1, font, BLStringView{str1, 4});
+        }
+        else {
+          _ctx.setStrokeStyle(style);
+          _ctx.strokeUtf8Text(pt0, font, BLStringView{str0, 4});
+          _ctx.strokeUtf8Text(pt1, font, BLStringView{str1, 4});
+        }
       }
 
       recordIteration(i);

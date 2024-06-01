@@ -25,15 +25,16 @@ TestOptions BaseTestApp::makeDefaultOptions() {
   opt.count = 1000;
   opt.threadCount = 0;
   opt.seed = 1;
-  opt.style = StyleId::kSolid;
+  opt.styleId = StyleId::kSolid;
   opt.compOp = CompOp::kSrcOver;
   opt.opacityOp = OpacityOp::kOpaque;
   opt.command = CommandId::kAll;
   opt.font = "built-in";
   opt.fontSize = 20;
   opt.faceIndex = 0;
-  opt.verbose = false;
+  opt.quiet = false;
   opt.flushSync = false;
+  opt.storeImages = false;
   return opt;
 }
 
@@ -45,30 +46,34 @@ bool BaseTestApp::parseCommonOptions(const CmdLine& cmdLine) {
   options.format = parseFormat(cmdLine.valueOf("--format", formatToString(defaultOptions.format)));
   options.count = cmdLine.valueAsUInt("--count", defaultOptions.count);
   options.seed = cmdLine.valueAsUInt("--seed", defaultOptions.seed);
-  options.style = parseStyleId(cmdLine.valueOf("--style", styleIdToString(defaultOptions.style)));
+  options.styleId = parseStyleId(cmdLine.valueOf("--style", styleIdToString(defaultOptions.styleId)));
+  options.styleOp = parseStyleOp(cmdLine.valueOf("--style-op", styleOpToString(defaultOptions.styleOp)));
   options.compOp = parseCompOp(cmdLine.valueOf("--comp-op", compOpToString(defaultOptions.compOp)));
   options.opacityOp = parseOpacityOp(cmdLine.valueOf("--opacity-op", opacityOpToString(defaultOptions.opacityOp)));
   options.command = parseCommandId(cmdLine.valueOf("--command", commandIdToString(defaultOptions.command)));
   options.font = cmdLine.valueOf("--font", "built-in");
   options.fontSize = cmdLine.valueAsUInt("--font-size", defaultOptions.fontSize);
   options.faceIndex = cmdLine.valueAsUInt("--face-index", defaultOptions.faceIndex);
-  options.verbose = cmdLine.hasArg("--verbose") || defaultOptions.verbose;
+  options.quiet = cmdLine.hasArg("--quiet") || defaultOptions.quiet;
   options.storeImages = cmdLine.hasArg("--store") || defaultOptions.storeImages;
 
   if (options.command == CommandId::kUnknown ||
-      options.style == StyleId::kUnknown ||
+      options.styleId == StyleId::kUnknown ||
       options.compOp == CompOp::kUnknown ||
       options.opacityOp == OpacityOp::kUnknown) {
     printf("Failed to process command line arguments:\n");
-
-    if (options.style == StyleId::kUnknown)
-      printf("  Unknown style '%s' - please use --help to list all available styles\n", cmdLine.valueOf("--style", ""));
 
     if (options.compOp == CompOp::kUnknown)
       printf("  Unknown compOp '%s' - please use --help to list all available operators\n", cmdLine.valueOf("--comp-op", ""));
 
     if (options.opacityOp == OpacityOp::kUnknown)
       printf("  Unknown opacityOp '%s' - please use --help to list all available options\n", cmdLine.valueOf("--opacity-op", ""));
+
+    if (options.styleId == StyleId::kUnknown)
+      printf("  Unknown style '%s' - please use --help to list all available styles\n", cmdLine.valueOf("--style", ""));
+
+    if (options.styleOp == StyleOp::kUnknown)
+      printf("  Unknown style-op '%s' - please use --help to list all available style options\n", cmdLine.valueOf("--style-op", ""));
 
     if (options.command == CommandId::kUnknown)
       printf("  Unknown command '%s' - please use --help to list all available commands\n", cmdLine.valueOf("--command", ""));
@@ -101,21 +106,21 @@ bool BaseTestApp::shouldRun(CommandId cmd) const {
   return options.command == cmd || options.command == CommandId::kAll;
 }
 
-void BaseTestApp::printAppInfo(const char* title) const {
-  BLRuntimeBuildInfo buildInfo;
-  BLRuntime::queryBuildInfo(&buildInfo);
+void BaseTestApp::printAppInfo(const char* title, bool quiet) const {
+  printf("%s [use --help for command line options]\n", title);
 
-  printf(
-    "%s [use --help for command line options]\n"
-    "  Version    : %u.%u.%u\n"
-    "  Build Type : %s\n"
-    "  Compiled By: %s\n\n",
-    title,
-    buildInfo.majorVersion,
-    buildInfo.minorVersion,
-    buildInfo.patchVersion,
-    buildInfo.buildType == BL_RUNTIME_BUILD_TYPE_DEBUG ? "Debug" : "Release",
-    buildInfo.compilerInfo);
+  if (!quiet) {
+    BLRuntimeBuildInfo buildInfo;
+    BLRuntime::queryBuildInfo(&buildInfo);
+    printf("  Version    : %u.%u.%u\n"
+           "  Build Type : %s\n"
+           "  Compiled By: %s\n\n",
+           buildInfo.majorVersion,
+           buildInfo.minorVersion,
+           buildInfo.patchVersion,
+           buildInfo.buildType == BL_RUNTIME_BUILD_TYPE_DEBUG ? "Debug" : "Release",
+           buildInfo.compilerInfo);
+  }
   fflush(stdout);
 }
 
@@ -128,7 +133,8 @@ void BaseTestApp::printCommonOptions(const TestOptions& defaultOptions) const {
   printf("  --format=<string>       - Image pixel format                [default=%s]\n", formatToString(defaultOptions.format));
   printf("  --count=<uint>          - Count of render commands          [default=%u]\n", defaultOptions.count);
   printf("  --seed=<uint>           - Random number generator seed      [default=%u]\n", defaultOptions.seed);
-  printf("  --style=<string>        - Style to render commands with     [default=%s]\n", styleIdToString(defaultOptions.style));
+  printf("  --style=<string>        - Style to render commands with     [default=%s]\n", styleIdToString(defaultOptions.styleId));
+  printf("  --style-op=<string>     - Configure how to use styles       [default=%s]\n", styleOpToString(defaultOptions.styleOp));
   printf("  --comp-op=<string>      - Composition operator              [default=%s]\n", compOpToString(defaultOptions.compOp));
   printf("  --opacity-op=<string>   - Opacity option                    [default=%s]\n", opacityOpToString(defaultOptions.opacityOp));
   printf("  --command=<string>      - Specify which command to run      [default=%s]\n", commandIdToString(defaultOptions.command));
@@ -136,25 +142,17 @@ void BaseTestApp::printCommonOptions(const TestOptions& defaultOptions) const {
   printf("  --font-size=<uint>      - Font size                         [default=%u]\n", defaultOptions.fontSize);
   printf("  --face-index=<uint>     - Face index of a font collection   [default=%u]\n", defaultOptions.faceIndex);
   printf("  --store                 - Write resulting images to files   [default=%s]\n", boolToString(defaultOptions.storeImages));
-  printf("  --verbose               - Debug each render command         [default=%s]\n", boolToString(defaultOptions.verbose));
+  printf("  --quiet                 - Don't write log unless necessary  [default=%s]\n", boolToString(defaultOptions.quiet));
   printf("\n");
 }
 
-void BaseTestApp::printStyles() const {
+void BaseTestApp::printFormats() const {
   using namespace StringUtils;
 
-  printf("List of styles:\n");
-  printf("  %-23s - Solid color\n", styleIdToString(StyleId::kSolid));
-  printf("  %-23s - Linear gradient\n", styleIdToString(StyleId::kGradientLinear));
-  printf("  %-23s - Radial gradient\n", styleIdToString(StyleId::kGradientRadial));
-  printf("  %-23s - Conic gradient\n", styleIdToString(StyleId::kGradientConic));
-  printf("  %-23s - Pattern with aligned translation (no scaling)\n", styleIdToString(StyleId::kPatternAligned));
-  printf("  %-23s - Pattern with fractional x translation\n", styleIdToString(StyleId::kPatternFx));
-  printf("  %-23s - Pattern with fractional y translation\n", styleIdToString(StyleId::kPatternFy));
-  printf("  %-23s - Pattern with fractional x and y translation\n", styleIdToString(StyleId::kPatternFxFy));
-  printf("  %-23s - Pattern with affine transformation (nearest)\n", styleIdToString(StyleId::kPatternAffineNearest));
-  printf("  %-23s - Pattern with affine transformation (bilinear)\n", styleIdToString(StyleId::kPatternAffineBilinear));
-  printf("  %-23s - Random style for every render call\n", styleIdToString(StyleId::kRandom));
+  printf("List of pixel formats:\n");
+  printf("  %-23s - Premultiplied 32-bit ARGB\n", formatToString(BL_FORMAT_PRGB32));
+  printf("  %-23s - 32-bit RGB (1 byte unused)\n", formatToString(BL_FORMAT_XRGB32));
+  printf("  %-23s - 8-bit alpha-only format\n", formatToString(BL_FORMAT_A8));
   printf("\n");
 }
 
@@ -181,13 +179,31 @@ void BaseTestApp::printOpacityOps() const {
   printf("\n");
 }
 
-void BaseTestApp::printFormats() const {
+void BaseTestApp::printStyleIds() const {
   using namespace StringUtils;
 
-  printf("List of pixel formats:\n");
-  printf("  %-23s - Premultiplied 32-bit ARGB\n", formatToString(BL_FORMAT_PRGB32));
-  printf("  %-23s - 32-bit RGB (1 byte unused)\n", formatToString(BL_FORMAT_XRGB32));
-  printf("  %-23s - 8-bit alpha-only format\n", formatToString(BL_FORMAT_A8));
+  printf("List of styles:\n");
+  printf("  %-23s - Solid color\n", styleIdToString(StyleId::kSolid));
+  printf("  %-23s - Linear gradient\n", styleIdToString(StyleId::kGradientLinear));
+  printf("  %-23s - Radial gradient\n", styleIdToString(StyleId::kGradientRadial));
+  printf("  %-23s - Conic gradient\n", styleIdToString(StyleId::kGradientConic));
+  printf("  %-23s - Pattern with aligned translation (no scaling)\n", styleIdToString(StyleId::kPatternAligned));
+  printf("  %-23s - Pattern with fractional x translation\n", styleIdToString(StyleId::kPatternFx));
+  printf("  %-23s - Pattern with fractional y translation\n", styleIdToString(StyleId::kPatternFy));
+  printf("  %-23s - Pattern with fractional x and y translation\n", styleIdToString(StyleId::kPatternFxFy));
+  printf("  %-23s - Pattern with affine transformation (nearest)\n", styleIdToString(StyleId::kPatternAffineNearest));
+  printf("  %-23s - Pattern with affine transformation (bilinear)\n", styleIdToString(StyleId::kPatternAffineBilinear));
+  printf("  %-23s - Random style for every render call\n", styleIdToString(StyleId::kRandom));
+  printf("\n");
+}
+
+void BaseTestApp::printStyleOps() const {
+  using namespace StringUtils;
+
+  printf("List of style options:\n");
+  printf("  %-23s - Pass styles directly to render calls\n", styleOpToString(StyleOp::kExplicit));
+  printf("  %-23s - Use setFillStyle() and setStrokeStyle()\n", styleOpToString(StyleOp::kImplicit));
+  printf("  %-23s - Random style option for every render call\n", styleOpToString(StyleOp::kRandom));
   printf("\n");
 }
 
@@ -215,7 +231,7 @@ void BaseTestApp::printCommands() const {
   printf("\n");
 }
 
-bool BaseTestApp::runMultiple(CommandId commandId, const char* testName, ContextTester& aTester, ContextTester& bTester, uint32_t maxDiff) {
+bool BaseTestApp::runMultiple(CommandId commandId, const TestInfo& info, ContextTester& aTester, ContextTester& bTester, uint32_t maxDiff) {
   aTester.clear();
   aTester.seed(options.seed);
   aTester.render(commandId, options.count, options);
@@ -224,18 +240,24 @@ bool BaseTestApp::runMultiple(CommandId commandId, const char* testName, Context
   bTester.seed(options.seed);
   bTester.render(commandId, options.count, options);
 
-  if (!checkOutput(testName, aTester, bTester, maxDiff)) {
-    findProblem(commandId, testName, aTester, bTester, maxDiff);
+  if (!checkOutput(info.id.data(), aTester, bTester, maxDiff)) {
+    findProblem(commandId, info, aTester, bTester, maxDiff);
     return false;
   }
 
   return true;
 }
 
-void BaseTestApp::findProblem(CommandId commandId, const char* testName, ContextTester& aTester, ContextTester& bTester, uint32_t maxDiff) {
+void BaseTestApp::findProblem(CommandId commandId, const TestInfo& info, ContextTester& aTester, ContextTester& bTester, uint32_t maxDiff) {
   // Do a binary search to find exactly the failing command.
   size_t base = 0;
   size_t size = options.count;
+
+  if (options.quiet) {
+    // Print the test name so we will know which test actually failed. This is
+    // important especially on CI where we want to use quiet mode by default.
+    printf("Testing [%s]\n", info.name.data());
+  }
 
   printf("  Bisecting to match the problematic command...\n");
 
@@ -254,7 +276,7 @@ void BaseTestApp::findProblem(CommandId commandId, const char* testName, Context
     aTester.render(commandId, base + size, options);
     bTester.render(commandId, base + size, options);
 
-    checkOutput(testName, aTester, bTester, maxDiff);
+    checkOutput(info.id.data(), aTester, bTester, maxDiff);
 
     if (ImageUtils::diffInfo(aTester.image(), bTester.image()).maxDiff <= maxDiff)
       base = middle;
@@ -276,10 +298,10 @@ void BaseTestApp::findProblem(CommandId commandId, const char* testName, Context
   aTester.render(commandId, 1, options);
   bTester.render(commandId, 1, options);
 
-  checkOutput(testName, aTester, bTester, maxDiff);
+  checkOutput(info.id.data(), aTester, bTester, maxDiff);
 }
 
-bool BaseTestApp::checkOutput(const char* testName, const ContextTester& aTester, const ContextTester& bTester, uint32_t maxDiff) {
+bool BaseTestApp::checkOutput(const char* testId, const ContextTester& aTester, const ContextTester& bTester, uint32_t maxDiff) {
   const BLImage& aImage = aTester.image();
   const BLImage& bImage = bTester.image();
 
@@ -290,7 +312,7 @@ bool BaseTestApp::checkOutput(const char* testName, const ContextTester& aTester
   mismatchCount++;
 
   BLString imageName;
-  imageName.assignFormat("%s-bug-%05llu", testName, (unsigned long long)mismatchCount);
+  imageName.assignFormat("%s-bug-%05llu", testId, (unsigned long long)mismatchCount);
   printf("  Mismatch: %s (maxDiff=%u cumulative=%llu)\n", imageName.data(), diffInfo.maxDiff, (unsigned long long)diffInfo.cumulativeDiff);
 
   if (options.storeImages) {
@@ -310,7 +332,9 @@ void BaseTestApp::storeImage(const BLImage& image, const char* name, const char*
   else
     s.assignFormat("%s.png", name);
 
-  printf("  Storing %s\n", s.data());
+  if (!options.quiet)
+    printf("  Storing %s\n", s.data());
+
   image.writeToFile(s.data());
 }
 
