@@ -753,7 +753,7 @@ static BL_NOINLINE void test_iop1_constraint(VecOp&& vecOp) noexcept {
 
 template<typename V, typename GenericOp, typename VecOp>
 static void test_iop1(VecOp&& vecOp) noexcept {
-  return test_iop1_constraint<V, GenericOp, ConstraintNone, VecOp>(std::forward<VecOp>(vecOp));
+  return test_iop1_constraint<V, GenericOp, ConstraintNone, VecOp>(BLInternal::forward<VecOp>(vecOp));
 }
 
 // SIMD - Tests - Integer Operations - 2 Source Operands
@@ -790,7 +790,7 @@ static BL_NOINLINE void test_iop2_constraint(VecOp&& vecOp) noexcept {
 
 template<typename V, typename GenericOp, typename VecOp>
 static void test_iop2(VecOp&& vecOp) noexcept {
-  return test_iop2_constraint<V, GenericOp, ConstraintNone, VecOp>(std::forward<VecOp>(vecOp));
+  return test_iop2_constraint<V, GenericOp, ConstraintNone, VecOp>(BLInternal::forward<VecOp>(vecOp));
 }
 
 // SIMD - Tests - Integer Operations - 3 Source Operands
@@ -831,7 +831,7 @@ static BL_NOINLINE void test_iop3_constraint(VecOp&& vecOp) noexcept {
 
 template<typename V, typename GenericOp, typename VecOp>
 static void test_iop3(VecOp&& vecOp) noexcept {
-  return test_iop3_constraint<V, GenericOp, ConstraintNone, VecOp>(std::forward<VecOp>(vecOp));
+  return test_iop3_constraint<V, GenericOp, ConstraintNone, VecOp>(BLInternal::forward<VecOp>(vecOp));
 }
 
 // SIMD - Tests - Integer Operations - Dispatcher
@@ -1629,33 +1629,33 @@ static BL_NOINLINE void test_integer(const char* ext) noexcept {
     alignas(16) uint32_t arr[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
 
     {
-      auto mi = array_lookup_u32_aligned16<4>(arr, 255);
+      auto mi = array_lookup_u32_eq_aligned16<4>(arr, 255);
       EXPECT_FALSE(mi.matched());
 
       for (uint32_t i = 0; i < 4; i++) {
-        auto m = array_lookup_u32_aligned16<4>(arr, i + 1);
+        auto m = array_lookup_u32_eq_aligned16<4>(arr, i + 1);
         EXPECT_TRUE(m.matched());
         EXPECT_EQ(m.index(), i);
       }
     }
 
     {
-      auto mi = array_lookup_u32_aligned16<8>(arr, 255);
+      auto mi = array_lookup_u32_eq_aligned16<8>(arr, 255);
       EXPECT_FALSE(mi.matched());
 
       for (uint32_t i = 0; i < 8; i++) {
-        auto m = array_lookup_u32_aligned16<8>(arr, i + 1);
+        auto m = array_lookup_u32_eq_aligned16<8>(arr, i + 1);
         EXPECT_TRUE(m.matched());
         EXPECT_EQ(m.index(), i);
       }
     }
 
     {
-      auto mi = array_lookup_u32_aligned16<16>(arr, 255);
+      auto mi = array_lookup_u32_eq_aligned16<16>(arr, 255);
       EXPECT_FALSE(mi.matched());
 
       for (uint32_t i = 0; i < 16; i++) {
-        auto m = array_lookup_u32_aligned16<16>(arr, i + 1);
+        auto m = array_lookup_u32_eq_aligned16<16>(arr, i + 1);
         EXPECT_TRUE(m.matched());
         EXPECT_EQ(m.index(), i);
       }

@@ -242,6 +242,8 @@ set(BLEND2D_SRC_LIST
   blend2d/codec/pngops.cpp
   blend2d/codec/pngops_sse2.cpp
   blend2d/codec/pngops_p.h
+  blend2d/codec/qoicodec.cpp
+  blend2d/codec/qoicodec_p.h
 
   blend2d/compression/checksum.cpp
   blend2d/compression/checksum_test.cpp
@@ -951,7 +953,7 @@ if (NOT BLEND2D_NO_JIT)
 
     list(APPEND BLEND2D_DEPS ${ASMJIT_LIBS})
     list(APPEND BLEND2D_PRIVATE_CFLAGS ${ASMJIT_CFLAGS})
-    list(APPEND BLEND2D_PRIVATE_CFLAGS -DASMJIT_NO_STDCXX -DASMJIT_NO_FOREIGN)
+    list(APPEND BLEND2D_PRIVATE_CFLAGS -DASMJIT_NO_STDCXX -DASMJIT_NO_FOREIGN -DASMJIT_ABI_NAMESPACE=abi_bl)
 
     # A possibility to reduce the resulting binary size by disabling asmjit logging.
     if (BLEND2D_NO_JIT_LOGGING)
@@ -980,9 +982,16 @@ if (MSVC AND NOT BLEND2D_NO_NATVIS)
 endif()
 
 set(BLEND2D_SRC "")
+set(BLEND2D_TEST_SRC_FILES "")
+
 foreach(src_file ${BLEND2D_SRC_LIST})
   set(src_file "${BLEND2D_DIR}/src/${src_file}")
-  list(APPEND BLEND2D_SRC ${src_file})
+
+  if ("${src_file}" MATCHES "_test(_(sse2|sse3|ssse3|sse4_1|sse4_2|avx|avx2|avx2fma|avx512|asimd))?\\.cpp$")
+    list(APPEND BLEND2D_TEST_SRC_FILES ${src_file})
+  else()
+    list(APPEND BLEND2D_SRC ${src_file})
+  endif()
 
   string(REGEX MATCH "_(sse2|sse3|ssse3|sse4_1|sse4_2|avx|avx2|avx2fma|avx512|asimd)\\.(c|cc|cxx|cpp|m|mm)$" FEATURE ${src_file})
   if (FEATURE)
@@ -1057,13 +1066,20 @@ if (NOT BLEND2D_EMBED)
   # Add Blend2D install instructions (library and public headers).
   if (NOT BLEND2D_NO_INSTALL)
     install(TARGETS blend2d
-            EXPORT blend2d-config
+            EXPORT blend2d-targets
             RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
             ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
             LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
             INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
-    install(EXPORT blend2d-config
+    install(EXPORT blend2d-targets
             NAMESPACE blend2d::
+            DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/blend2d")
+    include(CMakePackageConfigHelpers)
+    configure_package_config_file("${CMAKE_CURRENT_LIST_DIR}/blend2d-config.cmake.in" "${CMAKE_CURRENT_BINARY_DIR}/blend2d-config.cmake"
+            INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/blend2d"
+            NO_SET_AND_CHECK_MACRO
+            NO_CHECK_REQUIRED_COMPONENTS_MACRO)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/blend2d-config.cmake"
             DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/blend2d")
 
     foreach(_src_file ${BLEND2D_SRC_LIST})
@@ -1082,33 +1098,58 @@ if (NOT BLEND2D_EMBED)
     # -------------
 
     # Special target that always uses embedded Blend2D to be able to reach internals.
-    blend2d_add_target(bl_test_unit TEST
-                       SOURCES    ${BLEND2D_ALL_SRC_FILES}
-                                  test/bl_test_unit.cpp
-                                  test/broken.cpp
-                                  test/broken.h
-                       LIBRARIES  ${BLEND2D_DEPS}
-                       CFLAGS     ${BLEND2D_PRIVATE_CFLAGS}
-                                  -DBL_TEST
-                                  -DBL_STATIC
-                       CFLAGS_DBG ${BLEND2D_PRIVATE_CFLAGS_DBG}
-                       CFLAGS_REL ${BLEND2D_PRIVATE_CFLAGS_REL})
-    target_include_directories(bl_test_unit BEFORE PRIVATE ${ASMJIT_INCLUDE_DIRS})
-    target_include_directories(bl_test_unit BEFORE PRIVATE ${BLEND2D_INCLUDE_DIRS})
+    if (BLEND2D_STATIC)
+      # Optimize static builds - since blend2d library is static we can use it directly without build
+      # it as a part of the test application. This results in almost 50% build time optimization.
+      blend2d_add_target(bl_test_unit TEST
+                         SOURCES    ${BLEND2D_TEST_SRC_FILES}
+                                    test/bl_test_unit.cpp
+                                    test/broken.cpp
+                                    test/broken.h
+                         LIBRARIES  blend2d::blend2d
+                         CFLAGS     ${BLEND2D_PRIVATE_CFLAGS}
+                                    -DBL_TEST
+                                    -DBL_STATIC
+                         CFLAGS_DBG ${BLEND2D_PRIVATE_CFLAGS_DBG}
+                         CFLAGS_REL ${BLEND2D_PRIVATE_CFLAGS_REL})
+      target_include_directories(bl_test_unit BEFORE PRIVATE ${ASMJIT_INCLUDE_DIRS})
+    else()
+      blend2d_add_target(bl_test_unit TEST
+                         SOURCES    ${BLEND2D_TEST_SRC_FILES}
+                                    ${BLEND2D_ALL_SRC_FILES}
+                                    test/bl_test_unit.cpp
+                                    test/broken.cpp
+                                    test/broken.h
+                         LIBRARIES  ${BLEND2D_DEPS}
+                         CFLAGS     ${BLEND2D_PRIVATE_CFLAGS}
+                                    -DBL_TEST
+                                    -DBL_STATIC
+                         CFLAGS_DBG ${BLEND2D_PRIVATE_CFLAGS_DBG}
+                         CFLAGS_REL ${BLEND2D_PRIVATE_CFLAGS_REL})
+      target_include_directories(bl_test_unit BEFORE PRIVATE ${ASMJIT_INCLUDE_DIRS})
+      target_include_directories(bl_test_unit BEFORE PRIVATE ${BLEND2D_INCLUDE_DIRS})
+    endif()
 
     foreach(test_context_app bl_test_context_simple
                              bl_test_context_mt
                              bl_test_context_jit)
       blend2d_add_target(${test_context_app} TEST
-                        SOURCES test/${test_context_app}.cpp
-                                test/bl_test_cmdline.h
-                                test/bl_test_context_baseapp.cpp
-                                test/bl_test_context_baseapp.h
-                                test/bl_test_context_utilities.h
-                                test/bl_test_imageutils.h
-                        LIBRARIES blend2d::blend2d
-                        CFLAGS "${BLEND2D_SANITIZE_CFLAGS}")
+                         SOURCES test/${test_context_app}.cpp
+                                 test/bl_test_cmdline.h
+                                 test/bl_test_context_baseapp.cpp
+                                 test/bl_test_context_baseapp.h
+                                 test/bl_test_context_utilities.h
+                                 test/bl_test_imageutils.h
+                         LIBRARIES blend2d::blend2d
+                         CFLAGS "${BLEND2D_SANITIZE_CFLAGS}")
     endforeach()
+
+    blend2d_add_target(bl_test_image_io TEST
+                       SOURCES test/bl_test_image_io.cpp
+                               test/bl_test_imageutils.h
+                               test/bl_test_performance_timer.h
+                       LIBRARIES blend2d::blend2d
+                       CFLAGS "${BLEND2D_SANITIZE_CFLAGS}")
 
     # Blend2D Generator
     # -----------------
