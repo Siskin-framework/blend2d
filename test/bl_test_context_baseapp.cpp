@@ -25,9 +25,9 @@ TestOptions BaseTestApp::makeDefaultOptions() {
   opt.count = 1000;
   opt.threadCount = 0;
   opt.seed = 1;
-  opt.styleId = StyleId::kSolid;
-  opt.compOp = CompOp::kSrcOver;
-  opt.opacityOp = OpacityOp::kOpaque;
+  opt.styleId = StyleId::kRandom;
+  opt.compOp = CompOp::kRandom;
+  opt.opacityOp = OpacityOp::kRandom;
   opt.command = CommandId::kAll;
   opt.font = "built-in";
   opt.fontSize = 20;
@@ -43,7 +43,6 @@ bool BaseTestApp::parseCommonOptions(const CmdLine& cmdLine) {
 
   options.width = cmdLine.valueAsUInt("--width", defaultOptions.width);
   options.height = cmdLine.valueAsUInt("--height", defaultOptions.height);
-  options.format = parseFormat(cmdLine.valueOf("--format", formatToString(defaultOptions.format)));
   options.count = cmdLine.valueAsUInt("--count", defaultOptions.count);
   options.seed = cmdLine.valueAsUInt("--seed", defaultOptions.seed);
   options.styleId = parseStyleId(cmdLine.valueOf("--style", styleIdToString(defaultOptions.styleId)));
@@ -57,11 +56,27 @@ bool BaseTestApp::parseCommonOptions(const CmdLine& cmdLine) {
   options.quiet = cmdLine.hasArg("--quiet") || defaultOptions.quiet;
   options.storeImages = cmdLine.hasArg("--store") || defaultOptions.storeImages;
 
-  if (options.command == CommandId::kUnknown ||
+  const char* formatString = cmdLine.valueOf("--format", "all");
+  options.format = parseFormat(formatString);
+
+  bool formatValid = options.format != BL_FORMAT_NONE;
+  bool formatAll = false;
+
+  if (!formatValid && StringUtils::strieq(formatString, "all")) {
+    formatAll = true;
+    formatValid = true;
+  }
+
+  if (!formatValid ||
+      options.command == CommandId::kUnknown ||
       options.styleId == StyleId::kUnknown ||
       options.compOp == CompOp::kUnknown ||
-      options.opacityOp == OpacityOp::kUnknown) {
+      options.opacityOp == OpacityOp::kUnknown
+  ) {
     printf("Failed to process command line arguments:\n");
+
+    if (!formatValid)
+      printf("  Unknown format '%s' - please use --help to list all available pixel formats\n", cmdLine.valueOf("--format", ""));
 
     if (options.compOp == CompOp::kUnknown)
       printf("  Unknown compOp '%s' - please use --help to list all available operators\n", cmdLine.valueOf("--comp-op", ""));
@@ -99,11 +114,81 @@ bool BaseTestApp::parseCommonOptions(const CmdLine& cmdLine) {
     }
   }
 
-  return true;
-}
+  // Add all choices into the lists that are iterated during testing.
+  if (options.format == BL_FORMAT_NONE) {
+    testCases.formatIds.push_back(BL_FORMAT_PRGB32);
+    testCases.formatIds.push_back(BL_FORMAT_A8);
+  }
+  else {
+    testCases.formatIds.push_back(options.format);
+  }
 
-bool BaseTestApp::shouldRun(CommandId cmd) const {
-  return options.command == cmd || options.command == CommandId::kAll;
+  if (options.command == CommandId::kAll) {
+    for (uint32_t i = 0; i < uint32_t(CommandId::kAll); i++) {
+      testCases.commandIds.push_back(CommandId(i));
+    }
+  }
+  else {
+    testCases.commandIds.push_back(options.command);
+  }
+
+  if (options.styleId >= StyleId::kRandom) {
+    if (options.styleId == StyleId::kRandomStable || options.styleId == StyleId::kAllStable) {
+      testCases.styleIds.push_back(StyleId::kSolid);
+      testCases.styleIds.push_back(StyleId::kSolidOpaque);
+      testCases.styleIds.push_back(StyleId::kGradientLinear);
+      testCases.styleIds.push_back(StyleId::kGradientLinearDither);
+      testCases.styleIds.push_back(StyleId::kPatternAligned);
+      testCases.styleIds.push_back(StyleId::kPatternFx);
+      testCases.styleIds.push_back(StyleId::kPatternFy);
+      testCases.styleIds.push_back(StyleId::kPatternFxFy);
+      testCases.styleIds.push_back(StyleId::kPatternAffineNearest);
+      testCases.styleIds.push_back(StyleId::kPatternAffineBilinear);
+    }
+    else if (options.styleId == StyleId::kRandomUnstable || options.styleId == StyleId::kAllUnstable) {
+      testCases.styleIds.push_back(StyleId::kGradientRadial);
+      testCases.styleIds.push_back(StyleId::kGradientRadialDither);
+      testCases.styleIds.push_back(StyleId::kGradientConic);
+      testCases.styleIds.push_back(StyleId::kGradientConicDither);
+    }
+    else {
+      for (uint32_t i = 0; i < uint32_t(StyleId::kRandom); i++) {
+        testCases.styleIds.push_back(StyleId(i));
+      }
+    }
+  }
+  else {
+    testCases.styleIds.push_back(options.styleId);
+  }
+
+  if (options.styleOp >= StyleOp::kRandom) {
+    for (uint32_t i = 0; i < uint32_t(StyleOp::kRandom); i++) {
+      testCases.styleOps.push_back(StyleOp(i));
+    }
+  }
+  else {
+    testCases.styleOps.push_back(options.styleOp);
+  }
+
+  if (options.compOp >= CompOp::kRandom) {
+    for (uint32_t i = 0; i < uint32_t(CompOp::kRandom); i++) {
+      testCases.compOps.push_back(CompOp(i));
+    }
+  }
+  else {
+    testCases.compOps.push_back(options.compOp);
+  }
+
+  if (options.opacityOp >= OpacityOp::kRandom) {
+    for (uint32_t i = 0; i < uint32_t(OpacityOp::kRandom); i++) {
+      testCases.opacityOps.push_back(OpacityOp(i));
+    }
+  }
+  else {
+    testCases.opacityOps.push_back(options.opacityOp);
+  }
+
+  return true;
 }
 
 void BaseTestApp::printAppInfo(const char* title, bool quiet) const {
@@ -195,6 +280,11 @@ void BaseTestApp::printStyleIds() const {
   printf("  %-23s - Pattern with affine transformation (nearest)\n", styleIdToString(StyleId::kPatternAffineNearest));
   printf("  %-23s - Pattern with affine transformation (bilinear)\n", styleIdToString(StyleId::kPatternAffineBilinear));
   printf("  %-23s - Random style for every render call\n", styleIdToString(StyleId::kRandom));
+  printf("  %-23s - Like 'random', but only styles that never require --max-diff\n", styleIdToString(StyleId::kRandomStable));
+  printf("  %-23s - Like 'random', but only styles that could require --max-diff\n", styleIdToString(StyleId::kRandomUnstable));
+  printf("  %-23s - Test all styles separately\n", styleIdToString(StyleId::kAll));
+  printf("  %-23s - Like 'all', but only styles that never require --max-diff\n", styleIdToString(StyleId::kAllStable));
+  printf("  %-23s - Like 'all', but only styles that could require --max-diff\n", styleIdToString(StyleId::kAllUnstable));
   printf("\n");
 }
 
@@ -205,6 +295,7 @@ void BaseTestApp::printStyleOps() const {
   printf("  %-23s - Pass styles directly to render calls\n", styleOpToString(StyleOp::kExplicit));
   printf("  %-23s - Use setFillStyle() and setStrokeStyle()\n", styleOpToString(StyleOp::kImplicit));
   printf("  %-23s - Random style option for every render call\n", styleOpToString(StyleOp::kRandom));
+  printf("  %-23s - Test all style options separately\n", styleOpToString(StyleOp::kAll));
   printf("\n");
 }
 
@@ -228,7 +319,7 @@ void BaseTestApp::printCommands() const {
   printf("  %-23s - Strokes a path having quadratic curves\n", commandIdToString(CommandId::kStrokePathQuad));
   printf("  %-23s - Strokes a path having cubic curves\n", commandIdToString(CommandId::kStrokePathCubic));
   printf("  %-23s - Strokes text runs\n", commandIdToString(CommandId::kStrokeText));
-  printf("  %-23s - Executes all commands separately\n", commandIdToString(CommandId::kAll));
+  printf("  %-23s - Test all commands separately\n", commandIdToString(CommandId::kAll));
   printf("\n");
 }
 

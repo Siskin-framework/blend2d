@@ -11,83 +11,111 @@
 namespace bl {
 namespace Pipeline {
 namespace JIT {
-namespace FetchUtils {
 
-// bl::Pipeline::JIT::FetchUtils - Init & Pass Vec Coverage
-// ========================================================
+// bl::Pipeline::JIT - GlobalAlpha
+// ===============================
 
-// TODO: [JIT] REMOVE_THIS_ADD_THIS_TO_FILLPART
-
-static uint32_t calculateCoverageByteCount(PixelCount pixelCount, PixelType pixelType, PixelCoverageFormat coverageFormat) noexcept {
-  DataWidth dataWidth = DataWidth::k8;
-
-  switch (coverageFormat) {
-    case PixelCoverageFormat::kPacked:
-      dataWidth = DataWidth::k8;
-      break;
-
-    case PixelCoverageFormat::kUnpacked:
-      dataWidth = DataWidth::k16;
-      break;
-
-    default:
-      BL_NOT_REACHED();
-  }
-
-  uint32_t count = pixelCount.value();
-  switch (pixelType) {
-    case PixelType::kA8:
-      break;
-
-    case PixelType::kRGBA32:
-      count *= 4u;
-      break;
-
-    default:
-      BL_NOT_REACHED();
-  }
-
-  return (1u << uint32_t(dataWidth)) * count;
+void GlobalAlpha::_initInternal(PipeCompiler* pc) noexcept {
+  _pc = pc;
+  _pc->cc->comment("[[Global Alpha]]");
+  _hook = pc->cc->cursor();
 }
 
-void initVecCoverage(
-  PipeCompiler* pc,
-  VecArray& dst,
-  PixelCount maxPixelCount,
-  VecWidth maxVecWidth,
-  PixelType pixelType,
-  PixelCoverageFormat coverageFormat) noexcept {
+void GlobalAlpha::initFromMem(PipeCompiler* pc, const Mem& mem) noexcept {
+  // Can only be initialized once.
+  BL_ASSERT(!isInitialized());
 
-  uint32_t coverageByteCount = calculateCoverageByteCount(maxPixelCount, pixelType, coverageFormat);
-  VecWidth vecWidth = VecWidthUtils::vecWidthForByteCount(maxVecWidth, coverageByteCount);
-  uint32_t vecCount = VecWidthUtils::vecCountForByteCount(vecWidth, coverageByteCount);
-
-  pc->newVecArray(dst, vecCount, vecWidth, "vm");
+  _initInternal(pc);
+  _mem = mem;
 }
 
-void passVecCoverage(
-  VecArray& dst,
-  const VecArray& src,
-  PixelCount pixelCount,
-  PixelType pixelType,
-  PixelCoverageFormat coverageFormat) noexcept {
+void GlobalAlpha::initFromScalar(PipeCompiler* pc, const Gp& sa) noexcept {
+  // Can only be initialized once.
+  BL_ASSERT(!isInitialized());
 
-  uint32_t coverageByteCount = calculateCoverageByteCount(pixelCount, pixelType, coverageFormat);
-  VecWidth vecWidth = VecWidthUtils::vecWidthForByteCount(VecWidthUtils::vecWidthOf(src[0]), coverageByteCount);
-  uint32_t vecCount = VecWidthUtils::vecCountForByteCount(vecWidth, coverageByteCount);
+  _initInternal(pc);
+  _sa = sa;
+}
 
-  // We can use at most what was given to us, or less in case that the current
-  // `pixelCount` is less than `maxPixelCount` passed to `initVecCoverage()`.
-  BL_ASSERT(vecCount <= src.size());
+void GlobalAlpha::initFromPacked(PipeCompiler* pc, const Vec& pa) noexcept {
+  // Can only be initialized once.
+  BL_ASSERT(!isInitialized());
 
-  dst._size = vecCount;
-  for (uint32_t i = 0; i < vecCount; i++) {
-    dst.v[i].reset();
-    dst.v[i].as<asmjit::BaseReg>().setSignatureAndId(VecWidthUtils::signatureOf(vecWidth), src.v[i].id());
+  _initInternal(pc);
+  _pa = pa;
+}
+
+void GlobalAlpha::initFromUnpacked(PipeCompiler* pc, const Vec& ua) noexcept {
+  // Can only be initialized once.
+  BL_ASSERT(!isInitialized());
+
+  _initInternal(pc);
+  _ua = ua;
+}
+
+const Gp& GlobalAlpha::sa() noexcept {
+  BL_ASSERT(isInitialized());
+
+  if (!_sa.isValid()) {
+    ScopedInjector injector(_pc->cc, &_hook);
+    _sa = _pc->newGp32("ga.sa");
+
+    if (_ua.isValid()) {
+      _pc->s_extract_u16(_sa, _ua, 0u);
+    }
+    else if (_pa.isValid()) {
+      _pc->s_extract_u8(_sa, _ua, 0u);
+    }
+    else {
+      _pc->load_u8(_sa, _mem);
+    }
   }
+
+  return _sa;
 }
 
-} // {FetchUtils}
+const Vec& GlobalAlpha::pa() noexcept {
+  BL_ASSERT(isInitialized());
+
+  if (!_pa.isValid()) {
+    ScopedInjector injector(_pc->cc, &_hook);
+    _pa = _pc->newVec("ga.pa");
+
+    if (_ua.isValid()) {
+      _pc->v_packs_i16_u8(_pa, _ua, _ua);
+    }
+    else if (_sa.isValid()) {
+      _pc->v_broadcast_u8z(_pa, _sa);
+    }
+    else {
+      _pc->v_broadcast_u8(_pa, _mem);
+    }
+  }
+
+  return _pa;
+}
+
+const Vec& GlobalAlpha::ua() noexcept {
+  BL_ASSERT(isInitialized());
+
+  if (!_ua.isValid()) {
+    ScopedInjector injector(_pc->cc, &_hook);
+    _ua = _pc->newVec("ga.ua");
+
+    if (_pa.isValid()) {
+      _pc->v_cvt_u8_lo_to_u16(_ua, _pa);
+    }
+    else if (_sa.isValid()) {
+      _pc->v_broadcast_u16z(_ua, _sa);
+    }
+    else {
+      _pc->v_broadcast_u16(_ua, _mem);
+    }
+  }
+
+  return _ua;
+}
+
 } // {JIT}
 } // {Pipeline}
 } // {bl}
