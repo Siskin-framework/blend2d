@@ -38,8 +38,15 @@ static DiffInfo diffInfo(const BLImage& aImage, const BLImage& bImage) noexcept 
   if (bImage.getData(&bData) != BL_SUCCESS)
     return info;
 
-  if (aData.format != bData.format)
-    return info;
+  if (aData.format != bData.format) {
+    if ((aData.format == BL_FORMAT_XRGB32 && bData.format == BL_FORMAT_PRGB32) ||
+        (aData.format == BL_FORMAT_PRGB32 && bData.format == BL_FORMAT_XRGB32)) {
+      // Pass: We would convert between these two formats on the fly.
+    }
+    else {
+      return info;
+    }
+  }
 
   intptr_t aStride = aData.stride;
   intptr_t bStride = bData.stride;
@@ -52,24 +59,25 @@ static DiffInfo diffInfo(const BLImage& aImage, const BLImage& bImage) noexcept 
   switch (aData.format) {
     case BL_FORMAT_XRGB32:
     case BL_FORMAT_PRGB32: {
-      uint32_t mask = aData.format == BL_FORMAT_XRGB32 ? 0xFF000000u : 0x0u;
+      uint32_t aMask = aData.format == BL_FORMAT_XRGB32 ? 0xFF000000u : 0x0u;
+      uint32_t bMask = bData.format == BL_FORMAT_XRGB32 ? 0xFF000000u : 0x0u;
 
       for (size_t y = 0; y < h; y++) {
         const uint32_t* aPtr = reinterpret_cast<const uint32_t*>(aLine);
         const uint32_t* bPtr = reinterpret_cast<const uint32_t*>(bLine);
 
         for (size_t x = 0; x < w; x++) {
-          uint32_t aVal = aPtr[x] | mask;
-          uint32_t bVal = bPtr[x] | mask;
+          uint32_t aVal = aPtr[x] | aMask;
+          uint32_t bVal = bPtr[x] | bMask;
 
           if (aVal != bVal) {
-            int aDiff = blAbs(int((aVal >> 24) & 0xFF) - int((bVal >> 24) & 0xFF));
-            int rDiff = blAbs(int((aVal >> 16) & 0xFF) - int((bVal >> 16) & 0xFF));
-            int gDiff = blAbs(int((aVal >>  8) & 0xFF) - int((bVal >>  8) & 0xFF));
-            int bDiff = blAbs(int((aVal      ) & 0xFF) - int((bVal      ) & 0xFF));
-            int maxDiff = blMax(aDiff, rDiff, gDiff, bDiff);
+            uint32_t aDiff = uint32_t(blAbs(int((aVal >> 24) & 0xFF) - int((bVal >> 24) & 0xFF)));
+            uint32_t rDiff = uint32_t(blAbs(int((aVal >> 16) & 0xFF) - int((bVal >> 16) & 0xFF)));
+            uint32_t gDiff = uint32_t(blAbs(int((aVal >>  8) & 0xFF) - int((bVal >>  8) & 0xFF)));
+            uint32_t bDiff = uint32_t(blAbs(int((aVal      ) & 0xFF) - int((bVal      ) & 0xFF)));
+            uint32_t maxDiff = blMax(aDiff, rDiff, gDiff, bDiff);
 
-            info.maxDiff = blMax(info.maxDiff, uint32_t(maxDiff));
+            info.maxDiff = blMax(info.maxDiff, maxDiff);
             info.cumulativeDiff += maxDiff;
           }
         }
@@ -130,7 +138,7 @@ static BLImage diffImage(const BLImage& aImage, const BLImage& bImage) noexcept 
   if (aData.format != bData.format)
     return result;
 
-  if (result.create(w, h, BL_FORMAT_XRGB32) != BL_SUCCESS)
+  if (result.create(int(w), int(h), BL_FORMAT_XRGB32) != BL_SUCCESS)
     return result;
 
   if (result.getData(&rData) != BL_SUCCESS)

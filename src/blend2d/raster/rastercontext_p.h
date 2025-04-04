@@ -95,7 +95,7 @@ public:
   uint8_t solidFormatTable[BL_RASTER_CONTEXT_SOLID_FORMAT_COUNT];
   //! Table that can be used to override a fill/stroke color by one from SolidId (after a simplification).
   bl::RasterEngine::RenderFetchDataSolid* solidOverrideFillTable;
-  //! Solid fill override table indexed by \ref CompOpSolidId.
+  //! Solid fill override table indexed by \ref bl::CompOpSolidId.
   bl::RasterEngine::RenderFetchDataHeader* solidFetchDataOverrideTable[uint32_t(bl::CompOpSolidId::kAlwaysNop) + 1u];
 
   //! The current state of the rendering context, the `BLContextState` part is public.
@@ -159,7 +159,7 @@ public:
       savedState{},
       sharedFillState{},
       sharedStrokeState{},
-      baseZone(8192 - bl::ArenaAllocator::kBlockOverhead, 16, staticData, staticSize),
+      baseZone(8192, 16, staticData, staticSize),
       fetchDataPool(),
       savedStatePool(),
       pipeProvider(),

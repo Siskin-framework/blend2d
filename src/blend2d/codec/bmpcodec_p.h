@@ -39,6 +39,7 @@ static constexpr uint32_t kCompressionAlphaBitFields = 6;
 static constexpr uint32_t kCompressionCMYK = 11;
 static constexpr uint32_t kCompressionCMYK_RLE8 = 12;
 static constexpr uint32_t kCompressionCMYK_RLE4 = 1;
+static constexpr uint32_t kCompressionValueCount = 13;
 
 static constexpr uint32_t kColorSpaceCalibratedRGB = 0;
 static constexpr uint32_t kColorSpaceDD_RGB = 1;
@@ -118,7 +119,7 @@ struct BmpInfoHeader {
     uint16_t planes;
     //! Bits per pixel (1, 4, 8, 16, 24 or 32).
     uint16_t bitsPerPixel;
-    //! Compression methods used, see `BLBmpCompression`.
+    //! Compression methods used.
     uint32_t compression;
     //! Image data size (in bytes).
     uint32_t imageSize;
@@ -168,7 +169,7 @@ struct BmpInfoHeader {
 
     //! Rendering intent for bitmap.
     uint32_t intent;
-    //! ProfileData offset (in bytes), from the beginning of `BLBmpInfoHeader::Win`.
+    //! ProfileData offset (in bytes), from the beginning of `BmpInfoHeader::Win`.
     uint32_t profileData;
     //! Size, in bytes, of embedded profile data.
     uint32_t profileSize;
